@@ -36,6 +36,7 @@ library
                    , pipes
                    , protolude
                    , process
+                   , text
 
 executable lish-exe
   default-language:  Haskell2010
