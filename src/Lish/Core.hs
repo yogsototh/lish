@@ -3,13 +3,12 @@
 module Lish.Core
   (
     runLish
-  , internalCommands
-  , internalFunction
   ) where
 
 import           Control.Monad.IO.Class
-import           Data.List                (intercalate)
-import           GHC.IO.Handle            (hGetContents)
+import           Data.Char                (isSpace)
+import           Data.Maybe               (catMaybes, isJust)
+import           GHC.IO.Handle            (Handle, hGetContents)
 import           Pipes
 import           System.Console.Haskeline
 import           System.Process
@@ -28,18 +27,19 @@ mainLoop = do
     Just "exit" -> outputStrLn "bye bye!"
     Just "logout" -> outputStrLn "bye bye!"
     Just line -> do
-      eval (parseCmd line)
+      eval (parseCmd $ "(" ++ line ++ ")")
       mainLoop
 
 data SExp = S [SExp]
           | Atom String
           | Str String
           | Stream CmdStream
+          | WaitingStream CmdStream
 
 -- | a Command is a function that takes arguments
 -- and then returns an output that will be a list of lines
-type CmdStream = Producer String IO ()
-type Command = [String] -> CmdStream -> CmdStream
+-- type CmdStream = Producer String IO ()
+type CmdStream = Maybe Handle
 
 -- | = PARSE
 
@@ -64,42 +64,51 @@ parseExpr = between (char '(')
 -- |
 -- == INTERNAL COMMANDS
 
-prn :: Command
-prn str _ = do
-  lift $ putStrLn (intercalate " " str)
-  return ()
+-- prn :: Command
+-- prn str _ = do
+--   lift $ putStrLn (intercalate " " str)
+--   return ()
+--
+-- pr :: Command
+-- pr str _ = do
+--   lift $ putStr (intercalate " " str)
+--   return ()
+--
+--
+-- internalCommands :: [(String,Command)]
+-- internalCommands = [("prn",prn)
+--                    , ("pr", pr)]
+--
+-- internalFunction :: String -> Maybe Command
+-- internalFunction cmdname = lookup cmdname internalCommands
 
-pr :: Command
-pr str _ = do
-  lift $ putStr (intercalate " " str)
-  return ()
+trim :: String -> String
+trim = f . f
+  where f = reverse . dropWhile isSpace
 
+toArg :: SExp -> IO (Maybe String)
+toArg (Atom x)          = return $ Just x
+toArg (Str s)           = return $ Just s
+toArg (Stream (Just h)) = fmap (Just . trim) (hGetContents h)
+toArg _                 = return $ Nothing
 
-internalCommands :: [(String,Command)]
-internalCommands = [("prn",prn)
-                   , ("pr", pr)]
+toStdIn :: SExp -> Maybe Handle
+toStdIn (WaitingStream h) = h
+toStdIn _                 = Nothing
 
-internalFunction :: String -> Maybe Command
-internalFunction cmdname = lookup cmdname internalCommands
-
--- | Extremely unsafe
-unatom :: SExp -> String
-unatom (Atom x) = x
-unatom _ = error "BAD, Expected atom and got something else"
-
-execute :: SExp -> IO SExp
-execute (S (Atom cmd:args)) = do
-    res <- createProcess (proc cmd (map unatom args)) { std_out = CreatePipe }
-    case res of
-      (_, Just hout, _, _) -> do
-        cmdoutput <- hGetContents hout
-        let splitedByLines = lines cmdoutput
-            producer = mapM_ yield splitedByLines
-        return $ Stream producer
-      _                    -> do
-        putStrLn "no output"
-        return $ Stream (return ())
-execute _ = error "execute not on Cmd! This should never have happened!"
+executeShell :: SExp -> IO SExp
+executeShell (S args) = do
+  res <- (mapM toArg args) >>= return . catMaybes
+  let argsHandle = (filter isJust (map toStdIn args))
+  case res of
+    (cmd:sargs) -> do
+      (_, mb_hout, _, _) <- createProcess (proc cmd sargs) { std_in = case argsHandle of
+                                                                        (Just h:_) -> UseHandle h
+                                                                        _          -> Inherit
+                                                           , std_out = CreatePipe }
+      return $ Stream mb_hout
+    _ -> error "Empty list to execute!"
+executeShell _ = error "Can't execute something that is not an atom!"
 
 -- | Evaluate a command line
 eval :: Either ParseError SExp -> InputT IO ()
@@ -111,9 +120,21 @@ evalReduced :: SExp -> IO ()
 evalReduced (Atom s) = putStrLn s
 evalReduced (Str s) = print s
 evalReduced (S _) = putStrLn "Unreduced SExp!!!!"
-evalReduced (Stream cmdStream) =
-  runEffect (for cmdStream (lift . putStrLn))
+evalReduced (Stream Nothing) = return ()
+evalReduced (Stream (Just h)) = do
+  cmdoutput <- hGetContents h
+  let splittedLines = lines cmdoutput
+      producer = mapM_ yield splittedLines
+  runEffect (for producer (lift . putStrLn))
+evalReduced (WaitingStream Nothing) = return ()
+evalReduced (WaitingStream (Just h)) = do
+  cmdoutput <- hGetContents h
+  let splittedLines = lines cmdoutput
+      producer = mapM_ yield splittedLines
+  runEffect (for producer (lift . putStrLn))
 
 reduce :: SExp -> IO SExp
-reduce sexp@(S _) = execute sexp
-reduce x = return x
+reduce (S exprs) = do
+  reduced <- mapM reduce exprs
+  executeShell (S reduced)
+reduce x          = return x
