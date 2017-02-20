@@ -30,6 +30,9 @@ library
   hs-source-dirs:    src
   exposed-modules:   Lib
                    , Lish.Core
+                   , Lish.InternalCommands
+                   , Lish.Parser
+                   , Lish.Types
   build-depends:     base >= 4.8 && < 5
                    , haskeline
                    , parsec >= 3 && < 4
