@@ -7,6 +7,7 @@ module Lish.Core
 
 import           Control.Monad.IO.Class
 import           Data.Char                (isSpace)
+import           Data.List                (intercalate)
 import           Data.Maybe               (catMaybes, isJust)
 import           GHC.IO.Handle            (Handle, hGetContents)
 import           Pipes
@@ -30,7 +31,8 @@ mainLoop = do
       eval (parseCmd $ "(" ++ line ++ ")")
       mainLoop
 
-data SExp = S [SExp]
+data SExp = Lambda [SExp]
+          | Void
           | Atom String
           | Str String
           | Stream CmdStream
@@ -50,7 +52,7 @@ identifier :: Parsec String () String
 identifier = many1 (noneOf " \t()")
 
 parseList :: Parsec String () SExp
-parseList = fmap S $ sepBy parseExpr spaces
+parseList = fmap Lambda $ sepBy parseExpr spaces
 
 parseExpr :: Parsec String () SExp
 parseExpr = between (char '(')
@@ -64,20 +66,29 @@ parseExpr = between (char '(')
 -- |
 -- == INTERNAL COMMANDS
 
--- prn :: Command
--- prn str _ = do
---   lift $ putStrLn (intercalate " " str)
---   return ()
---
--- pr :: Command
--- pr str _ = do
---   lift $ putStr (intercalate " " str)
---   return ()
---
---
--- internalCommands :: [(String,Command)]
--- internalCommands = [("prn",prn)
---                    , ("pr", pr)]
+prn :: Command
+prn strs = do
+  args <- fmap catMaybes (mapM toArg strs)
+  putStrLn (intercalate " " args)
+  return Void
+
+pr :: Command
+pr strs = do
+  args <- fmap catMaybes (mapM toArg strs)
+  putStr (intercalate " " args)
+  return Void
+
+toWaitingStream :: Command
+toWaitingStream (Stream (Just h):[]) = return (WaitingStream (Just h))
+toWaitingStream _ = return Void
+
+type Command = [SExp] -> IO SExp
+
+internalCommands :: [(String,Command)]
+internalCommands = [ ("prn", prn)
+                   , ("pr", pr)
+                   , (">", toWaitingStream)
+                   ]
 --
 -- internalFunction :: String -> Maybe Command
 -- internalFunction cmdname = lookup cmdname internalCommands
@@ -97,7 +108,7 @@ toStdIn (WaitingStream h) = h
 toStdIn _                 = Nothing
 
 executeShell :: SExp -> IO SExp
-executeShell (S args) = do
+executeShell (Lambda args) = do
   res <- (mapM toArg args) >>= return . catMaybes
   let argsHandle = (filter isJust (map toStdIn args))
   case res of
@@ -117,9 +128,10 @@ eval parsed = case parsed of
   Left err   -> outputStrLn (show err)
 
 evalReduced :: SExp -> IO ()
+evalReduced Void = return ()
 evalReduced (Atom s) = putStrLn s
 evalReduced (Str s) = print s
-evalReduced (S _) = putStrLn "Unreduced SExp!!!!"
+evalReduced (Lambda _) = putStrLn "Unreduced SExp!!!!"
 evalReduced (Stream Nothing) = return ()
 evalReduced (Stream (Just h)) = do
   cmdoutput <- hGetContents h
@@ -134,7 +146,11 @@ evalReduced (WaitingStream (Just h)) = do
   runEffect (for producer (lift . putStrLn))
 
 reduce :: SExp -> IO SExp
-reduce (S exprs) = do
+reduce (Lambda exprs) = do
   reduced <- mapM reduce exprs
-  executeShell (S reduced)
+  case reduced of
+    (Atom f:args) -> case lookup f internalCommands of
+                        Just fn -> fn args
+                        _ -> executeShell (Lambda reduced)
+    _             ->  executeShell (Lambda reduced)
 reduce x          = return x
