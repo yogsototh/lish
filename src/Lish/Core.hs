@@ -12,9 +12,10 @@ import           Data.List                (intercalate)
 import           Data.Maybe               (catMaybes, isJust)
 import qualified Data.Text                as Text
 import           GHC.IO.Handle            (Handle, hGetContents)
+import           GHC.Show                 (Show (..))
 import           Pipes
 import           Prelude                  (String, lines, lookup)
-import           Protolude                hiding (for, many, (<|>))
+import           Protolude                hiding (for, many, show, (<|>))
 import           System.Console.Haskeline
 import           System.Process
 import           Text.Parsec
@@ -44,6 +45,9 @@ data SExp = Lambda [SExp]
           | Stream CmdStream
           | WaitingStream CmdStream
 
+instance Show SExp where
+  show = repr
+
 -- | a Command is a function that takes arguments
 -- and then returns an output that will be a list of lines
 -- type CmdStream = Producer String IO ()
@@ -71,7 +75,7 @@ parseString = (Str . toS) <$> between (char '"')
                               (many (noneOf "\""))
 
 parseSExps :: Parsec String () [SExp]
-parseSExps = sepBy parseExpr spaces
+parseSExps = sepEndBy parseExpr spaces
 
 parseLambda :: Parsec String () SExp
 parseLambda = Lambda <$> between (char '(') (char ')') parseSExps
