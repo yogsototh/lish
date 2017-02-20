@@ -51,5 +51,6 @@ evalReduced x = putStrLn (show x)
 
 eval :: Either ParseError SExp -> InputT IO ()
 eval parsed = case parsed of
-  Right sexpr -> liftIO (reduceLambda (EnvSExp sexpr []) >>= evalReduced .sexp)
+  Right sexpr -> liftIO $
+    runStateT (reduceLambda sexpr) [] >>= evalReduced . fst
   Left err   -> outputStrLn (show err)

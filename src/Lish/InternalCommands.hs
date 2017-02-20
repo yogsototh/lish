@@ -2,11 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | Lish internal commands
 module Lish.InternalCommands
-  ( internalCommands
+  ( lookup
   , toArg
   )
   where
 
+import qualified Prelude as Prelude
 import           GHC.IO.Handle            (hGetContents)
 import qualified Data.Text  as Text
 import           Lish.Types
@@ -20,39 +21,29 @@ toArg _                 = return $ Nothing
 
 prn :: Command
 prn args = do
-  strs <- catMaybes <$> (mapM (toArg . sexp) args)
-  putText $ (Text.intercalate " " strs) <> "\n"
-  return EnvSExp { sexp = Void
-                 , env = (mconcat (map env args))
-                 }
+  strs <- catMaybes <$> liftIO (mapM toArg args)
+  putStrLn $ (Text.intercalate " " strs)
+  return Void
 
 pr :: Command
 pr args = do
-  strs <- catMaybes <$> (mapM (toArg . sexp) args)
-  putText (Text.intercalate " " strs)
-  return EnvSExp { sexp = Void
-                 , env = (mconcat (map env args))
-                 }
+  strs <- catMaybes <$> liftIO (mapM toArg args)
+  putStr (Text.intercalate " " strs)
+  return Void
 
-evalErr :: Text -> IO EnvSExp
+evalErr :: Text -> StateT Env IO SExp
 evalErr errmsg = do
   putText $ "EvalError: " <> errmsg
-  return (EnvSExp Void empty)
+  return Void
 
 replace :: Command
-replace args@((EnvSExp { sexp = (Str old)}) :
-              (EnvSExp { sexp = (Str new)}) :
-              (EnvSExp { sexp = (Str str)}) :
-              []) =
-  return $ EnvSExp { sexp =  Str $ Text.replace old new str
-                   , env = (mconcat (map env args))}
+replace ((Str old) : (Str new) : (Str str) : []) =
+  return $ Str $ Text.replace old new str
 replace _ = evalErr "replace should take 3 String arguments"
 
 toWaitingStream :: Command
-toWaitingStream (EnvSExp { sexp = Stream (Just h)
-                         , env = environment     }:[]) =
-  return $ EnvSExp (WaitingStream (Just h)) environment
-toWaitingStream _                      = return (EnvSExp Void empty)
+toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
+toWaitingStream _                     = return Void
 
 internalCommands :: [(Text,Command)]
 internalCommands = [ ("prn", prn)
@@ -60,3 +51,6 @@ internalCommands = [ ("prn", prn)
                    , (">", toWaitingStream)
                    , ("replace", replace)
                    ]
+
+lookup :: Text -> Maybe Command
+lookup = flip Prelude.lookup internalCommands

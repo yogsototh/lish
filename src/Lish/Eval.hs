@@ -6,29 +6,50 @@ module Lish.Eval
   )
   where
 
-import qualified Control.Exception        as Exception
+import qualified Control.Exception     as Exception
+import qualified Prelude               as Prelude
 import           Protolude
-import           System.Process hiding (env)
-import           Prelude                  (lookup)
+import           System.Process        hiding (env)
 
-import           Lish.Types hiding (show)
-import Lish.InternalCommands
+import           Lish.InternalCommands (toArg)
+import qualified Lish.InternalCommands as InternalCommands
+import           Lish.Types            hiding (show)
 
 -- | The main evaluation function
 -- TODO: its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
-reduceLambda :: EnvSExp -> IO EnvSExp
-reduceLambda (EnvSExp { sexp = (Lambda exprs)
-                      , env = environment
-                      }) = do
-  reduced <- mapM reduceLambda (map (\sexpr -> EnvSExp sexpr environment) exprs)
+reduceLambda :: SExp -> StateT Env IO SExp
+reduceLambda (Lambda exprs) = do
+  reduced <- mapM reduceLambda exprs
   case reduced of
-    (EnvSExp { sexp = Atom f, env = cmdenv}:args)
-      -> case lookup f internalCommands of
-           Just fn -> fn args
-           _       -> executeShell (Lambda (map sexp reduced)) >>= \s -> return $ EnvSExp { sexp = s, env = cmdenv }
-    _ ->  executeShell (Lambda (map sexp reduced)) >>= \s -> return $ EnvSExp { sexp = s, env = environment }
+    (Atom f:args) -> do
+      resultInternal <- tryInternalCommand f args
+      case resultInternal of
+        Just x -> return x
+        Nothing -> do
+          resultEnv <- tryEnvCommand f args
+          case resultEnv of
+            Just x  -> return x
+            Nothing -> lift (executeShell (Lambda reduced))
+    _             ->  lift (executeShell (Lambda reduced))
 reduceLambda x          = return x
+
+apply :: SExp -> Command
+apply = undefined
+
+tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
+tryEnvCommand f args = do
+  envcmd <- get
+  case Prelude.lookup f envcmd of
+    Just fn -> Just <$> (apply fn args)
+    _       -> return Nothing
+
+
+tryInternalCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
+tryInternalCommand f args =
+  case InternalCommands.lookup f of
+    Just fn -> Just <$> fn args
+    _       -> return Nothing
 
 -- | take a SExp
 toStdIn :: SExp -> Maybe Handle

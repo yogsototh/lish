@@ -3,8 +3,8 @@
 -- | Lish types
 module Lish.Types
   ( SExp(..)
-  , EnvSExp(..)
   , show
+  , Env
   , CmdStream
   , Command
   )
@@ -38,5 +38,4 @@ repr (WaitingStream _) = "<w-stream>"
 
 type CmdStream = Maybe Handle
 type Env = [(Text,SExp)]
-data EnvSExp = EnvSExp { sexp :: SExp , env :: Env}
-type Command = [EnvSExp] -> IO EnvSExp
+type Command = [SExp] -> StateT Env IO SExp
