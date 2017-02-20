@@ -3,6 +3,8 @@
 module Lish.Core
   (
     runLish
+  , internalCommands
+  , internalFunction
   ) where
 
 import           Control.Monad.IO.Class
@@ -36,9 +38,6 @@ data SExp = S [SExp]
 
 -- | a Command is a function that takes arguments
 -- and then returns an output that will be a list of lines
-type LispVal = [SExp] -> SExp
-
-type Arguments = [String]
 type CmdStream = Producer String IO ()
 type Command = [String] -> CmdStream -> CmdStream
 
@@ -48,7 +47,7 @@ parseCmd :: String -> Either ParseError SExp
 parseCmd = parse parseExpr "S-Expr"
 
 identifier :: Parsec String () String
-identifier = many1 (noneOf " \t")
+identifier = many1 (noneOf " \t()")
 
 parseList :: Parsec String () SExp
 parseList = fmap S $ sepBy parseExpr spaces
@@ -57,6 +56,7 @@ parseExpr :: Parsec String () SExp
 parseExpr = between (char '(')
                     (char ')')
                     parseList
+            <|> fmap Atom identifier
 
 -- |
 -- = EVAL
@@ -82,6 +82,8 @@ internalCommands = [("prn",prn)
 internalFunction :: String -> Maybe Command
 internalFunction cmdname = lookup cmdname internalCommands
 
+-- | Extremely unsafe
+unatom :: SExp -> String
 unatom (Atom x) = x
 unatom _ = error "BAD, Expected atom and got something else"
 
@@ -102,17 +104,16 @@ execute _ = error "execute not on Cmd! This should never have happened!"
 -- | Evaluate a command line
 eval :: Either ParseError SExp -> InputT IO ()
 eval parsed = case parsed of
-  Right sexp -> liftIO (seval sexp) >>= mapM_ outputStr
+  Right sexp -> liftIO (reduce sexp >>= evalReduced)
   Left err   -> outputStrLn (show err)
 
-seval :: SExp -> IO [String]
-seval (cmd@(S (cmdname:args))) = case internalFunction (unatom cmdname) of
-                          Just f  -> f args
-                          Nothing -> execute cmd
-seval (S exprs) = do
-  lsOflines <- mapM seval exprs
-  case map unlines lsOflines of
-    (cmd:args) -> seval (Cmd cmd args)
-    _          -> putStrLn "ERROR in seval, empty S-Expr" >> return []
+evalReduced :: SExp -> IO ()
+evalReduced (Atom s) = putStrLn s
+evalReduced (Str s) = print s
+evalReduced (S _) = putStrLn "Unreduced SExp!!!!"
+evalReduced (Stream cmdStream) =
+  runEffect (for cmdStream (lift . putStrLn))
 
-seval (Str s) = return [s]
+reduce :: SExp -> IO SExp
+reduce sexp@(S _) = execute sexp
+reduce x = return x
