@@ -30,6 +30,7 @@ library
   hs-source-dirs:    src
   exposed-modules:   Lib
                    , Lish.Core
+                   , Lish.Eval
                    , Lish.InternalCommands
                    , Lish.Parser
                    , Lish.Types
