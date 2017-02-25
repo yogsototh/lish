@@ -35,7 +35,7 @@ reduceLambda (Lambda exprs) = do
 reduceLambda x          = return x
 
 apply :: SExp -> Command
-apply = undefined
+apply x _ = return x
 
 tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
 tryEnvCommand f args = do
