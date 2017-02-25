@@ -10,10 +10,11 @@ module Lish.Types
   )
 where
 
-import qualified Data.Text     as Text
-import           GHC.IO.Handle (Handle)
-import           GHC.Show      (Show (..))
-import           Protolude     hiding (show)
+import qualified Data.Map.Strict as Map
+import qualified Data.Text       as Text
+import           GHC.IO.Handle   (Handle)
+import           GHC.Show        (Show (..))
+import           Protolude       hiding (show)
 
 data SExp = Lambda [SExp]
           | Atom Text
@@ -37,5 +38,5 @@ repr (Stream _)        = "<stream>"
 repr (WaitingStream _) = "<w-stream>"
 
 type CmdStream = Maybe Handle
-type Env = [(Text,SExp)]
+type Env = Map.Map Text SExp
 type Command = [SExp] -> StateT Env IO SExp

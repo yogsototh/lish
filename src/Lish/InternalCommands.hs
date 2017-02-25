@@ -7,15 +7,16 @@ module Lish.InternalCommands
   )
   where
 
-import qualified Prelude as Prelude
-import           GHC.IO.Handle            (hGetContents)
-import qualified Data.Text  as Text
+import qualified Data.Map.Strict as Map
+import qualified Data.Text       as Text
+import           GHC.IO.Handle   (hGetContents)
 import           Lish.Types
+import qualified Prelude         as Prelude
 import           Protolude
 
 toArg :: SExp -> IO (Maybe Text)
-toArg (Atom x)      = return $ Just $ toS x
-toArg (Str s)       = return $ Just $ toS s
+toArg (Atom x)          = return $ Just $ toS x
+toArg (Str s)           = return $ Just $ toS s
 toArg (Stream (Just h)) = fmap (Just . Text.strip .toS) (hGetContents h)
 toArg _                 = return $ Nothing
 
@@ -36,6 +37,12 @@ evalErr errmsg = do
   putText $ "EvalError: " <> errmsg
   return Void
 
+llet :: Command
+llet ((Atom name):v:[]) = do
+  modify (Map.insert name v)
+  return v
+llet _ = return Void
+
 replace :: Command
 replace ((Str old) : (Str new) : (Str str) : []) =
   return $ Str $ Text.replace old new str
@@ -50,6 +57,7 @@ internalCommands = [ ("prn", prn)
                    , ("pr", pr)
                    , (">", toWaitingStream)
                    , ("replace", replace)
+                   , ("let",llet)
                    ]
 
 lookup :: Text -> Maybe Command

@@ -35,6 +35,7 @@ library
                    , Lish.Parser
                    , Lish.Types
   build-depends:     base >= 4.8 && < 5
+                   , containers
                    , haskeline
                    , parsec >= 3 && < 4
                    , pipes

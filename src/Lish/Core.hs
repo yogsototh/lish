@@ -6,11 +6,13 @@ module Lish.Core
     runLish
   ) where
 
+import qualified Data.Map.Strict          as Map
 import           GHC.IO.Handle            (hGetContents)
 import           Pipes
-import           Prelude                  (lines)
+import           Prelude                  (String, lines)
 import           Protolude                hiding (for, many, show, (<|>))
 import           System.Console.Haskeline
+import           System.Environment       (getEnvironment)
 import           Text.Parsec              (ParseError)
 
 import           Lish.Eval
@@ -19,20 +21,34 @@ import           Lish.Types
 
 -- | Start an interactive lish shell
 runLish :: IO ()
-runLish = runInputT defaultSettings mainLoop
+runLish = do
+  env <- toEnv <$> getEnvironment
+  runInputT defaultSettings (mainLoop env)
 
-mainLoop :: InputT IO ()
-mainLoop = do
-  maybeLine <- getInputLine ":€ > "
+-- | System Environment -> LISH Env
+toEnv :: [(String,String)] -> Env
+toEnv env =
+  env &
+  map (\(k,v) -> (toS k, Str (toS v))) &
+  Map.fromList
+
+-- | Main REPL loop / Interpreter
+mainLoop :: Env -> InputT IO ()
+mainLoop env = do
+  let prompt = case Map.lookup "PROMPT" env of
+                 Just (Str p) -> p
+                 _            -> ":€ > "
+  maybeLine <- getInputLine (toS prompt)
   case maybeLine of
     -- EOF / control-d
     Nothing -> outputStrLn "bye bye!"
     Just "exit" -> outputStrLn "bye bye!"
     Just "logout" -> outputStrLn "bye bye!"
     Just line -> do
-      eval (parseCmd ("(" <> line <> ")"))
-      mainLoop
+      newenv <- eval env (parseCmd ("(" <> line <> ")"))
+      mainLoop newenv
 
+-- | Eval the reduced form
 evalReduced :: SExp -> IO ()
 evalReduced Void = return ()
 evalReduced (Stream Nothing) = return ()
@@ -49,8 +65,11 @@ evalReduced (WaitingStream (Just h)) = do
   runEffect (for producer (lift . putStrLn))
 evalReduced x = putStrLn (show x)
 
-eval :: Either ParseError SExp -> InputT IO ()
-eval parsed = case parsed of
-  Right sexpr -> liftIO $
-    runStateT (reduceLambda sexpr) [] >>= evalReduced . fst
-  Left err   -> outputStrLn (show err)
+-- | Evaluate the parsed expr
+eval :: Env -> Either ParseError SExp -> InputT IO Env
+eval env parsed = case parsed of
+  Right sexpr -> liftIO $ do
+    (reduced,newenv) <- runStateT (reduceLambda sexpr) env
+    evalReduced reduced
+    return newenv
+  Left err   -> outputStrLn (show err) >> return env

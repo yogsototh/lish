@@ -7,7 +7,7 @@ module Lish.Eval
   where
 
 import qualified Control.Exception     as Exception
-import qualified Prelude               as Prelude
+import qualified Data.Map.Strict       as Map
 import           Protolude
 import           System.Process        hiding (env)
 
@@ -40,7 +40,7 @@ apply = undefined
 tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
 tryEnvCommand f args = do
   envcmd <- get
-  case Prelude.lookup f envcmd of
+  case Map.lookup f envcmd of
     Just fn -> Just <$> (apply fn args)
     _       -> return Nothing
 
