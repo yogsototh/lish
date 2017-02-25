@@ -11,7 +11,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text       as Text
 import           GHC.IO.Handle   (hGetContents)
 import           Lish.Types
-import qualified Prelude         as Prelude
 import           Protolude
 import System.Environment (setEnv)
 
@@ -51,6 +50,12 @@ export ((Atom name):v@(Str s):[]) = do
   return v
 export _ = return Void
 
+getenv :: Command
+getenv ((Atom varname):[]) = do
+  hm <- get
+  return $ fromMaybe Void (Map.lookup varname hm)
+getenv _ = return Void
+
 replace :: Command
 replace ((Str old) : (Str new) : (Str str) : []) =
   return $ Str $ Text.replace old new str
@@ -60,14 +65,16 @@ toWaitingStream :: Command
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
 toWaitingStream _                     = return Void
 
-internalCommands :: [(Text,Command)]
+internalCommands :: Map.Map Text Command
 internalCommands = [ ("prn", prn)
                    , ("pr", pr)
                    , (">", toWaitingStream)
                    , ("replace", replace)
                    , ("let",llet)
                    , ("export",export)
-                   ]
+                   , ("getenv",getenv)
+                   , ("$",getenv)
+                   ] & Map.fromList
 
 lookup :: Text -> Maybe Command
-lookup = flip Prelude.lookup internalCommands
+lookup = flip Map.lookup internalCommands
