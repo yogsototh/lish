@@ -30,8 +30,8 @@ reduceLambda (Lambda exprs) = do
           resultEnv <- tryEnvCommand f args
           case resultEnv of
             Just x  -> return x
-            Nothing -> lift (executeShell (Lambda reduced))
-    _             ->  lift (executeShell (Lambda reduced))
+            Nothing -> executeShell (Lambda reduced)
+    _             ->  executeShell (Lambda reduced)
 reduceLambda x          = return x
 
 apply :: SExp -> Command
@@ -56,13 +56,13 @@ toStdIn :: SExp -> Maybe Handle
 toStdIn (WaitingStream h) = h
 toStdIn _                 = Nothing
 
-shellErr :: Text -> IO SExp
+shellErr :: Text -> StateT Env IO SExp
 shellErr errmsg = do
   putText ("Error: " <> errmsg)
   return Void
 
 -- | Execute a shell command
-executeShell :: SExp -> IO SExp
+executeShell :: SExp -> StateT Env IO SExp
 executeShell (Lambda args) = do
   res <- (mapM toArg args) >>= return . catMaybes
   let argsHandle = (filter isJust (map toStdIn args))
@@ -71,8 +71,8 @@ executeShell (Lambda args) = do
                       _          -> Inherit
   case (map toS res) of
     (cmd:sargs) -> do
-      result <- trySh $ createProcess (proc cmd sargs) { std_in = stdinhandle
-                                                       , std_out = CreatePipe }
+      result <- lift $ trySh $ createProcess (proc cmd sargs) { std_in = stdinhandle
+                                                              , std_out = CreatePipe }
       case result of
         Right (_, mb_hout, _, _) -> return $ Stream mb_hout
         Left ex                  -> shellErr ("[shell 1/2] " <> (show (Lambda args)) <> "\n[shell 2/2] " <> show ex)
