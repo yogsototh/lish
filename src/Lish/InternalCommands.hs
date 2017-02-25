@@ -13,6 +13,7 @@ import           GHC.IO.Handle   (hGetContents)
 import           Lish.Types
 import qualified Prelude         as Prelude
 import           Protolude
+import System.Environment (setEnv)
 
 toArg :: SExp -> IO (Maybe Text)
 toArg (Atom x)          = return $ Just $ toS x
@@ -43,6 +44,13 @@ llet ((Atom name):v:[]) = do
   return v
 llet _ = return Void
 
+export :: Command
+export ((Atom name):v@(Str s):[]) = do
+  liftIO $ setEnv (toS name) (toS s)
+  modify (Map.insert name v)
+  return v
+export _ = return Void
+
 replace :: Command
 replace ((Str old) : (Str new) : (Str str) : []) =
   return $ Str $ Text.replace old new str
@@ -58,6 +66,7 @@ internalCommands = [ ("prn", prn)
                    , (">", toWaitingStream)
                    , ("replace", replace)
                    , ("let",llet)
+                   , ("export",export)
                    ]
 
 lookup :: Text -> Maybe Command
