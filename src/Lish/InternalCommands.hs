@@ -7,12 +7,12 @@ module Lish.InternalCommands
   )
   where
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Text       as Text
-import           GHC.IO.Handle   (hGetContents)
+import qualified Data.Map.Strict    as Map
+import qualified Data.Text          as Text
+import           GHC.IO.Handle      (hGetContents)
 import           Lish.Types
-import           Protolude
-import System.Environment (setEnv)
+import           Protolude          hiding (show)
+import           System.Environment (setEnv)
 
 toArg :: SExp -> IO (Maybe Text)
 toArg (Atom x)          = return $ Just $ toS x
@@ -57,9 +57,19 @@ getenv ((Atom varname):[]) = do
 getenv _ = return Void
 
 replace :: Command
-replace ((Str old) : (Str new) : (Str str) : []) =
-  return $ Str $ Text.replace old new str
+replace ((Str old) : (Str new) : (Str text) : []) =
+  return $ Str $ Text.replace old new text
 replace _ = evalErr "replace should take 3 String arguments"
+
+str :: Command
+str exprs = do
+  args <- catMaybes <$> liftIO (mapM toArg exprs)
+  return $ Str $ Text.concat args
+
+atom :: Command
+atom ((Atom a):[]) = return $ Atom a
+atom ((Str s):[])  = return $ Atom s
+atom _             = return Void
 
 toWaitingStream :: Command
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
@@ -74,6 +84,8 @@ internalCommands = [ ("prn", prn)
                    , ("export",export)
                    , ("getenv",getenv)
                    , ("$",getenv)
+                   , ("str",str)
+                   , ("atom",atom)
                    ] & Map.fromList
 
 lookup :: Text -> Maybe Command
