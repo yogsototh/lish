@@ -5,36 +5,45 @@ module Lish.Parser
   (parseCmd)
   where
 
-import           Prelude     (String)
-import           Protolude   hiding (for, many, (<|>))
+import           Protolude   hiding (for, many, (<|>), optional)
 import           Text.Parsec
+import           Text.Parsec.Text
 
 import           Lish.Types
 
-parseCmd :: String -> Either ParseError SExp
+parseCmd :: Text -> Either ParseError SExp
 parseCmd = parse parseExpr "S-Expr"
 
-parseExpr :: Parsec String () SExp
+parseExpr :: Parser SExp
 parseExpr = parseLambda
             <|> parseList
+            <|> parseBool
+            <|> parseNumber
             <|> parseAtom
             <|> parseString
 
-parseAtom :: Parsec String () SExp
+parseNumber :: Parser SExp
+parseNumber = (Num . fromMaybe 0 . readMaybe) <$> many1 digit
+
+parseBool :: Parser SExp
+parseBool = Bool <$> ((string "true" >> return True)
+                      <|> (string "false" >> return False))
+
+parseAtom :: Parser SExp
 parseAtom = Atom <$> do frst <- (noneOf " \t()[]\"")
                         rest <- many (noneOf " \t()[]")
                         return $ toS (frst:rest)
 
-parseString :: Parsec String () SExp
+parseString :: Parser SExp
 parseString = (Str . toS) <$> between (char '"')
                               (char '"')
                               (many (noneOf "\""))
 
-parseSExps :: Parsec String () [SExp]
+parseSExps :: Parser [SExp]
 parseSExps = sepEndBy parseExpr spaces
 
-parseLambda :: Parsec String () SExp
+parseLambda :: Parser SExp
 parseLambda = Lambda <$> between (char '(') (char ')') parseSExps
 
-parseList :: Parsec String () SExp
+parseList :: Parser SExp
 parseList = List <$> between (char '[') (char ']') parseSExps

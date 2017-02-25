@@ -45,7 +45,7 @@ mainLoop env = do
     Just "exit" -> outputStrLn "bye bye!"
     Just "logout" -> outputStrLn "bye bye!"
     Just line -> do
-      newenv <- eval env (parseCmd ("(" <> line <> ")"))
+      newenv <- eval env (parseCmd ("(" <> toS line <> ")"))
       mainLoop newenv
 
 -- | Eval the reduced form

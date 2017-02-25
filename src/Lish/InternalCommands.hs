@@ -90,6 +90,19 @@ atom ((Atom a):[]) = return $ Atom a
 atom ((Str s):[])  = return $ Atom s
 atom _             = evalErr "atom need an atom or a string"
 
+-- | Numbers Ops
+binop :: (Integer -> Integer -> Integer) -> Command
+binop f ((Num x):(Num y):[]) = return $ Num (f x y)
+binop _ _ = evalErr "binary operator needs two numbers"
+
+bbinop :: (Bool -> Bool -> Bool) -> Command
+bbinop f ((Bool x):(Bool y):[]) = return $ Bool (f x y)
+bbinop _ _ = evalErr "boolean binary operator need two booleans arguments"
+
+lnot :: Command
+lnot ((Bool x):[]) = return ( Bool (not x))
+lnot _ = evalErr "not need a boolean"
+
 toWaitingStream :: Command
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
 toWaitingStream _                     = return Void
@@ -106,6 +119,16 @@ internalCommands = [ ("prn", prn)
                    , ("$",getenv)
                    , ("str",str)
                    , ("atom",atom)
+                   -- binary operators
+                   , ("+",binop (+))
+                   , ("-",binop (-))
+                   , ("*",binop (*))
+                   , ("/",binop div)
+                   , ("^",binop (^))
+                   -- boolean bin ops
+                   , ("and", bbinop (&&))
+                   , ("or", bbinop (||))
+                   , ("not", lnot)
                    ] & Map.fromList
 
 lookup :: Text -> Maybe Command
