@@ -17,7 +17,6 @@ parseCmd = parse parseExpr "S-Expr"
 parseExpr :: Parser SExp
 parseExpr = parseLambda
             <|> parseList
-            <|> parseBool
             <|> parseNumber
             <|> parseAtom
             <|> parseString
@@ -25,14 +24,14 @@ parseExpr = parseLambda
 parseNumber :: Parser SExp
 parseNumber = (Num . fromMaybe 0 . readMaybe) <$> many1 digit
 
-parseBool :: Parser SExp
-parseBool = Bool <$> ((string "true" >> return True)
-                      <|> (string "false" >> return False))
-
 parseAtom :: Parser SExp
-parseAtom = Atom <$> do frst <- (noneOf " \t()[]\"")
-                        rest <- many (noneOf " \t()[]")
-                        return $ toS (frst:rest)
+parseAtom = do
+  frst <- (noneOf " \t()[]\"")
+  rest <- many (noneOf " \t()[]")
+  case frst:rest of
+    "true" -> return (Bool True)
+    "false" -> return (Bool False)
+    x -> return (Atom (toS x))
 
 parseString :: Parser SExp
 parseString = (Str . toS) <$> between (char '"')
