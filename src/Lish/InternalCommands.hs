@@ -25,14 +25,14 @@ toArg (Stream (Just h)) = lift $ fmap (Just . Text.strip .toS) (hGetContents h)
 toArg _                 = return $ Nothing
 
 -- | Print with return line
-prn :: Command
+prn :: ReduceUnawareCommand
 prn args = do
   strs <- catMaybes <$> mapM toArg args
   putStrLn $ (Text.intercalate " " strs)
   return Void
 
 -- | Print
-pr :: Command
+pr :: ReduceUnawareCommand
 pr args = do
   strs <- catMaybes <$> mapM toArg args
   putStr (Text.intercalate " " strs)
@@ -44,21 +44,21 @@ evalErr errmsg = do
   return Void
 
 -- | Define a var
-def :: Command
+def :: ReduceUnawareCommand
 def ((Atom name):v:[]) = do
   modify (Map.insert name v)
   return v
 def _ = evalErr "def need 2 args, an atom and an S-Expr. Ex: (def foo \"foo\")"
 
 -- | Undefine a var
-undef :: Command
+undef :: ReduceUnawareCommand
 undef ((Atom name):[]) = do
   modify (Map.delete name)
   return Void
 undef x = evalErr $ "undef wait an atom got" <> toS (show x)
 
 -- | Export a var as Environment variable
-export :: Command
+export :: ReduceUnawareCommand
 export ((Atom name):v@(Str s):[]) = do
   liftIO $ setEnv (toS name) (toS s)
   modify (Map.insert name v)
@@ -66,49 +66,54 @@ export ((Atom name):v@(Str s):[]) = do
 export _ = evalErr $ "eval need an atom and a string (eval foo \"foo\")"
 
 -- | retrieve the value of a var
-getenv :: Command
+getenv :: ReduceUnawareCommand
 getenv ((Atom varname):[]) = do
   hm <- get
   return $ fromMaybe Void (Map.lookup varname hm)
 getenv _ = evalErr "getenv need on atom as argument"
 
 -- | replace à la `sed s/old/new/g text`
-replace :: Command
+replace :: ReduceUnawareCommand
 replace ((Str old) : (Str new) : (Str text) : []) =
   return $ Str $ Text.replace old new text
 replace _ = evalErr "replace should take 3 String arguments"
 
 -- | create a string and concat multiple elements
-str :: Command
+str :: ReduceUnawareCommand
 str exprs = do
   args <- catMaybes <$> mapM toArg exprs
   return $ Str $ Text.concat args
 
 -- | create an atom from a string (do nothing to atoms)
-atom :: Command
+atom :: ReduceUnawareCommand
 atom ((Atom a):[]) = return $ Atom a
 atom ((Str s):[])  = return $ Atom s
 atom _             = evalErr "atom need an atom or a string"
 
 -- | Numbers Ops
-binop :: (Integer -> Integer -> Integer) -> Command
+binop :: (Integer -> Integer -> Integer) -> ReduceUnawareCommand
 binop f ((Num x):(Num y):[]) = return $ Num (f x y)
 binop _ _ = evalErr "binary operator needs two numbers"
 
-bbinop :: (Bool -> Bool -> Bool) -> Command
+bbinop :: (Bool -> Bool -> Bool) -> ReduceUnawareCommand
 bbinop f ((Bool x):(Bool y):[]) = return $ Bool (f x y)
 bbinop _ _ = evalErr "boolean binary operator need two booleans arguments"
 
-lnot :: Command
+lnot :: ReduceUnawareCommand
 lnot ((Bool x):[]) = return ( Bool (not x))
 lnot _ = evalErr "not need a boolean"
 
-toWaitingStream :: Command
+toWaitingStream :: ReduceUnawareCommand
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
 toWaitingStream _                     = return Void
 
-internalCommands :: Map.Map Text Command
-internalCommands = [ ("prn", prn)
+toStrictCmd :: ReduceUnawareCommand -> Command
+toStrictCmd f reducer sexps = do
+  reduced <- mapM reducer sexps
+  f reduced
+
+strictCommands :: [(Text,ReduceUnawareCommand)]
+strictCommands = [ ("prn", prn)
                    , ("pr", pr)
                    , (">", toWaitingStream)
                    , ("replace", replace)
@@ -129,7 +134,24 @@ internalCommands = [ ("prn", prn)
                    , ("and", bbinop (&&))
                    , ("or", bbinop (||))
                    , ("not", lnot)
-                   ] & Map.fromList
+                   ]
+
+lishIf :: Command
+lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
+  reducedSexp <- reduceLambda sexp
+  case reducedSexp of
+    Bool True -> reduceLambda sexp1
+    Bool False -> reduceLambda sexp2
+    _ -> evalErr "first argument to if must be a Bool"
+lishIf _ _ = evalErr "if need a bool, a then body and an else one"
+
+unstrictCommands :: [(Text,Command)]
+unstrictCommands = [("if",lishIf)]
+
+internalCommands :: Map.Map Text Command
+internalCommands = (strictCommands & map (\(x,y) -> (x,toStrictCmd y)))
+                   <> unstrictCommands
+  & Map.fromList
 
 lookup :: Text -> Maybe Command
 lookup = flip Map.lookup internalCommands

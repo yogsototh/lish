@@ -19,22 +19,26 @@ import           Lish.Types            hiding (show)
 -- TODO: its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
 reduceLambda :: SExp -> StateT Env IO SExp
-reduceLambda (Lambda exprs) = do
-  reduced <- mapM reduceLambda exprs
+reduceLambda (Lambda (expr:exprs)) = do
+  reduced <- reduceLambda expr
   case reduced of
-    (Atom f:args) -> do
-      resultInternal <- tryInternalCommand f args
+    Atom f -> do
+      resultInternal <- tryInternalCommand f exprs
       case resultInternal of
         Just x -> return x
         Nothing -> do
-          resultEnv <- tryEnvCommand f args
+          resultEnv <- tryEnvCommand f exprs
           case resultEnv of
             Just x  -> return x
-            Nothing -> executeShell (Lambda reduced)
-    _             ->  executeShell (Lambda reduced)
+            Nothing -> do
+              reducedArgs <- mapM reduceLambda exprs
+              executeShell (Lambda ((Atom f):reducedArgs))
+    s             -> do
+              reducedArgs <- mapM reduceLambda exprs
+              executeShell (Lambda (s:reducedArgs))
 reduceLambda x          = return x
 
-apply :: SExp -> Command
+apply :: SExp -> ReduceUnawareCommand
 apply x _ = return x
 
 tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
@@ -48,7 +52,7 @@ tryEnvCommand f args = do
 tryInternalCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
 tryInternalCommand f args =
   case InternalCommands.lookup f of
-    Just fn -> Just <$> fn args
+    Just (fn) -> Just <$> fn reduceLambda args
     _       -> return Nothing
 
 -- | take a SExp

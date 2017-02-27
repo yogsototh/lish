@@ -7,6 +7,7 @@ module Lish.Types
   , Env
   , CmdStream
   , Command
+  , ReduceUnawareCommand
   )
 where
 
@@ -48,4 +49,5 @@ repr (WaitingStream _) = "<w-stream>"
 
 type CmdStream = Maybe Handle
 type Env = Map.Map Text SExp
-type Command = [SExp] -> StateT Env IO SExp
+type ReduceUnawareCommand = [SExp] -> StateT Env IO SExp
+type Command = (SExp -> StateT Env IO SExp) -> ReduceUnawareCommand
