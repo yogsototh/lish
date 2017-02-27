@@ -112,29 +112,49 @@ toStrictCmd f reducer sexps = do
   reduced <- mapM reducer sexps
   f reduced
 
+-- | fn to declare a lish function
+-- (fn [arg1 arg2] body1 body2)
+-- (fn [x y] (if (> x 3) (* 2 x) (* y y)))
+fn :: Command
+fn reducer (p:bodies) = do
+  reducedParams <- reducer p
+  case reducedParams of
+    List args -> do
+      let  parameters = map fromAtom args
+      if all isJust parameters
+        then return (Fn { params = catMaybes parameters
+                        , body = bodies
+                        , closure = mempty
+                        })
+        else return Void
+    _ -> return Void
+  where fromAtom (Atom a) = Just a
+        fromAtom _ = Nothing
+fn _ _ = return Void
+
 strictCommands :: [(Text,ReduceUnawareCommand)]
 strictCommands = [ ("prn", prn)
-                   , ("pr", pr)
-                   , (">", toWaitingStream)
-                   , ("replace", replace)
-                   , ("def",def)
-                   , ("undef",undef)
-                   , ("export",export)
-                   , ("getenv",getenv)
-                   , ("$",getenv)
-                   , ("str",str)
-                   , ("atom",atom)
-                   -- binary operators
-                   , ("+",binop (+))
-                   , ("-",binop (-))
-                   , ("*",binop (*))
-                   , ("/",binop div)
-                   , ("^",binop (^))
-                   -- boolean bin ops
-                   , ("and", bbinop (&&))
-                   , ("or", bbinop (||))
-                   , ("not", lnot)
-                   ]
+                 , ("pr", pr)
+                 , (">", toWaitingStream)
+                 , ("replace", replace)
+                 , ("def",def)
+                 , ("undef",undef)
+                 , ("export",export)
+                 , ("getenv",getenv)
+                 , ("$",getenv)
+                 , ("str",str)
+                 , ("atom",atom)
+                 -- binary operators
+                 , ("+",binop (+))
+                 , ("-",binop (-))
+                 , ("*",binop (*))
+                 , ("/",binop div)
+                 , ("^",binop (^))
+                 -- boolean bin ops
+                 , ("and", bbinop (&&))
+                 , ("or", bbinop (||))
+                 , ("not", lnot)
+                 ]
 
 lishIf :: Command
 lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
@@ -146,7 +166,9 @@ lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
 lishIf _ _ = evalErr "if need a bool, a then body and an else one"
 
 unstrictCommands :: [(Text,Command)]
-unstrictCommands = [("if",lishIf)]
+unstrictCommands = [ ("if",lishIf)
+                   , ("fn",fn)
+                   ]
 
 internalCommands :: Map.Map Text Command
 internalCommands = (strictCommands & map (\(x,y) -> (x,toStrictCmd y)))
