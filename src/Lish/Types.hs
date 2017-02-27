@@ -26,16 +26,13 @@ data SExp = Atom Text
           | Lambda [SExp]
           | Void
           -- only exists during evaluation
-          | Fn { params :: [Text]
-               , body :: [SExp]
+          | Fn { params  :: [Text]
+               , body    :: [SExp]
                , closure :: Env
                }
           | Stream CmdStream
           | WaitingStream CmdStream
           deriving (Eq,Show)
-
--- instance Show SExp where
---   show = toS . repr
 
 repr :: SExp -> Text
 repr (Atom s)          = s

@@ -63,7 +63,7 @@ evalReduced (WaitingStream (Just h)) = do
   let splittedLines = lines cmdoutput
       producer = mapM_ yield splittedLines
   runEffect (for producer (lift . putStrLn))
-evalReduced x = putStrLn (show x)
+evalReduced x = putStrLn (repr x)
 
 -- | Evaluate the parsed expr
 eval :: Env -> Either ParseError SExp -> InputT IO Env
