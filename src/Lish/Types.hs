@@ -4,6 +4,7 @@
 module Lish.Types
   ( SExp(..)
   , show
+  , repr
   , Env
   , CmdStream
   , Command
@@ -31,10 +32,10 @@ data SExp = Atom Text
                }
           | Stream CmdStream
           | WaitingStream CmdStream
-          deriving (Eq)
+          deriving (Eq,Show)
 
-instance Show SExp where
-  show = toS . repr
+-- instance Show SExp where
+--   show = toS . repr
 
 repr :: SExp -> Text
 repr (Atom s)          = s
