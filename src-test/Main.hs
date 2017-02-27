@@ -3,6 +3,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.SmallCheck
 
 import Lib (inc)
+import Lish.Test.Parser
 
 main :: IO ()
 main = defaultMain $ testGroup "all-tests" tests
@@ -11,6 +12,7 @@ tests :: [TestTree]
 tests =
   [ testGroup "SmallCheck" scTests
   , testGroup "Unit tests" huTests
+  , testGroup "Lish.Parser" parseTests
   ]
 
 scTests :: [TestTree]

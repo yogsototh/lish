@@ -31,6 +31,7 @@ data SExp = Atom Text
                }
           | Stream CmdStream
           | WaitingStream CmdStream
+          deriving (Eq)
 
 instance Show SExp where
   show = toS . repr
