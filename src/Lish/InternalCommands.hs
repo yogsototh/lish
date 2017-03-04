@@ -101,6 +101,10 @@ toWaitingStream :: ReduceUnawareCommand
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
 toWaitingStream _                     = return Void
 
+equal :: ReduceUnawareCommand
+equal (x:y:[]) = return (Bool (x == y))
+equal args = evalErr $ "= need two args, got" <> (toS (show args))
+
 toStrictCmd :: ReduceUnawareCommand -> Command
 toStrictCmd f reducer sexps = do
   reduced <- mapM reducer sexps
@@ -140,6 +144,7 @@ strictCommands = [ ("prn", prn)
                  , ("$",getenv)
                  , ("str",str)
                  , ("atom",atom)
+                 , ("=",equal)
                  -- binary operators
                  , ("+",binop (+))
                  , ("-",binop (-))

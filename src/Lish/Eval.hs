@@ -17,31 +17,39 @@ import qualified Lish.InternalCommands as InternalCommands
 import           Lish.Types            hiding (show)
 
 -- | The main evaluation function
--- TODO: its real type should be something isomorphic to
+-- its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
 reduceLambda :: SExp -> StateT Env IO SExp
 reduceLambda (Lambda (expr:exprs)) = do
   reduced <- reduceLambda expr
-  env <- get
-  liftIO $ print env
-  liftIO $ print reduced
-  liftIO $ print exprs
-  case reduced of
-    Atom f -> do
-      resultInternal <- tryInternalCommand f exprs
-      case resultInternal of
-        Just x -> return x
-        Nothing -> do
-          resultEnv <- tryEnvCommand f exprs
-          case resultEnv of
-            Just x  -> return x
+  redred <- reduceLambda reduced
+  if redred /= reduced
+    then reduceLambda (Lambda (reduced:exprs))
+    else do
+      -- DEBUG --env <- get
+      -- DEBUG --liftIO $ do
+      -- DEBUG --  putText "Lambda:"
+      -- DEBUG --  print $ (expr:exprs)
+      -- DEBUG --  putText "Env:"
+      -- DEBUG --  print env
+      -- DEBUG --  putText "Reduced Head:"
+      -- DEBUG --  print reduced
+      case reduced of
+        Atom f -> do
+          resultInternal <- tryInternalCommand f exprs
+          case resultInternal of
+            Just x -> return x
             Nothing -> do
-              reducedArgs <- mapM reduceLambda exprs
-              executeShell (Lambda ((Atom f):reducedArgs))
-    f@(Fn _ _ _) -> applyFn f exprs
-    s  -> do
-      reducedArgs <- mapM reduceLambda exprs
-      executeShell (Lambda (s:reducedArgs))
+              resultEnv <- tryEnvCommand f exprs
+              case resultEnv of
+                Just x  -> return x
+                Nothing -> do
+                  reducedArgs <- mapM reduceLambda exprs
+                  executeShell (Lambda ((Atom f):reducedArgs))
+        f@(Fn _ _ _) -> applyFn f exprs
+        s  -> do
+          reducedArgs <- mapM reduceLambda exprs
+          executeShell (Lambda (s:reducedArgs))
 reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
