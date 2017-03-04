@@ -43,13 +43,6 @@ evalErr errmsg = do
   putText $ "EvalError: " <> errmsg
   return Void
 
--- | Define a var
-def :: ReduceUnawareCommand
-def ((Atom name):v:[]) = do
-  modify (Map.insert name v)
-  return v
-def _ = evalErr "def need 2 args, an atom and an S-Expr. Ex: (def foo \"foo\")"
-
 -- | Undefine a var
 undef :: ReduceUnawareCommand
 undef ((Atom name):[]) = do
@@ -93,7 +86,8 @@ atom _             = evalErr "atom need an atom or a string"
 -- | Numbers Ops
 binop :: (Integer -> Integer -> Integer) -> ReduceUnawareCommand
 binop f ((Num x):(Num y):[]) = return $ Num (f x y)
-binop _ _ = evalErr "binary operator needs two numbers"
+binop _ exprs = evalErr
+  ("binary operator needs two numbers. Got: " <> toS (show exprs))
 
 bbinop :: (Bool -> Bool -> Bool) -> ReduceUnawareCommand
 bbinop f ((Bool x):(Bool y):[]) = return $ Bool (f x y)
@@ -110,6 +104,9 @@ toWaitingStream _                     = return Void
 toStrictCmd :: ReduceUnawareCommand -> Command
 toStrictCmd f reducer sexps = do
   reduced <- mapM reducer sexps
+  -- DEBUG -- liftIO $ putText "Reduced:"
+  -- DEBUG -- liftIO $ print reduced
+  -- DEBUG -- liftIO $ putText "----"
   f reduced
 
 -- | fn to declare a lish function
@@ -123,7 +120,7 @@ fn reducer (p:bodies) = do
       let  parameters = map fromAtom args
       if all isJust parameters
         then return (Fn { params = catMaybes parameters
-                        , body = bodies
+                        , body = Lambda $ (Atom "do"):bodies
                         , closure = mempty
                         })
         else return Void
@@ -137,7 +134,6 @@ strictCommands = [ ("prn", prn)
                  , ("pr", pr)
                  , (">", toWaitingStream)
                  , ("replace", replace)
-                 , ("def",def)
                  , ("undef",undef)
                  , ("export",export)
                  , ("getenv",getenv)
@@ -156,6 +152,19 @@ strictCommands = [ ("prn", prn)
                  , ("not", lnot)
                  ]
 
+-- | Define a var
+def :: Command
+def _ ((Atom name):v:[]) = do
+  modify (Map.insert name v)
+  return v
+def _ exprs =
+  evalErr $ "def need 2 args, an atom and an S-Expr. Ex: (def foo \"foo\")"
+            <> "instead got: " <> toS (show exprs)
+
+doCommand :: Command
+doCommand reduceLambda exprs = do
+  foldl' (\_ x -> reduceLambda x) (return Void) exprs
+
 lishIf :: Command
 lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
   reducedSexp <- reduceLambda sexp
@@ -167,7 +176,9 @@ lishIf _ _ = evalErr "if need a bool, a then body and an else one"
 
 unstrictCommands :: [(Text,Command)]
 unstrictCommands = [ ("if",lishIf)
+                   , ("def",def)
                    , ("fn",fn)
+                   , ("do",doCommand)
                    ]
 
 internalCommands :: Map.Map Text Command

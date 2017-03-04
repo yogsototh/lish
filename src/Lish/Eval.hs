@@ -1,3 +1,4 @@
+
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | Lish parser
@@ -21,6 +22,10 @@ import           Lish.Types            hiding (show)
 reduceLambda :: SExp -> StateT Env IO SExp
 reduceLambda (Lambda (expr:exprs)) = do
   reduced <- reduceLambda expr
+  env <- get
+  liftIO $ print env
+  liftIO $ print reduced
+  liftIO $ print exprs
   case reduced of
     Atom f -> do
       resultInternal <- tryInternalCommand f exprs
@@ -33,19 +38,36 @@ reduceLambda (Lambda (expr:exprs)) = do
             Nothing -> do
               reducedArgs <- mapM reduceLambda exprs
               executeShell (Lambda ((Atom f):reducedArgs))
-    s             -> do
-              reducedArgs <- mapM reduceLambda exprs
-              executeShell (Lambda (s:reducedArgs))
+    f@(Fn _ _ _) -> applyFn f exprs
+    s  -> do
+      reducedArgs <- mapM reduceLambda exprs
+      executeShell (Lambda (s:reducedArgs))
+reduceLambda (Atom x) = do
+  env <- get
+  case Map.lookup x env of
+    Just s -> return s
+    _ -> return $ Atom x
 reduceLambda x          = return x
 
-apply :: SExp -> ReduceUnawareCommand
-apply x _ = return x
+applyFn :: SExp -> ReduceUnawareCommand
+applyFn (Fn par bod clos) args =
+  if length par /= length args
+    then shellErr "wrong number of arguments"
+    else do
+      let localClosure = bindVars clos (zip par args)
+      currentEnv <- get
+      -- Run the function in its own closure
+      fmap fst $ liftIO $
+        runStateT (reduceLambda bod) (Map.union currentEnv localClosure)
+  where
+    bindVars oldenv newvars = Map.union oldenv (Map.fromList newvars)
+applyFn x _ = return x
 
 tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
 tryEnvCommand f args = do
   envcmd <- get
   case Map.lookup f envcmd of
-    Just fn -> Just <$> (apply fn args)
+    Just fn@(Fn _ _ _) -> Just <$> (applyFn fn args)
     _       -> return Nothing
 
 

@@ -27,7 +27,7 @@ data SExp = Atom Text
           | Void
           -- only exists during evaluation
           | Fn { params  :: [Text]
-               , body    :: [SExp]
+               , body    :: SExp
                , closure :: Env
                }
           | Stream CmdStream
