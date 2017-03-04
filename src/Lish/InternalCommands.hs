@@ -21,6 +21,7 @@ toArg (Atom x)          = do
     Just (Str s) -> s
     _ -> toS x
 toArg (Str s)           = return $ Just $ toS s
+toArg (Num i) = return . Just . toS . show $ i
 toArg (Stream (Just h)) = lift $ fmap (Just . Text.strip .toS) (hGetContents h)
 toArg _                 = return $ Nothing
 
@@ -106,7 +107,11 @@ toWaitingStream _                     = return Void
 
 equal :: ReduceUnawareCommand
 equal (x:y:[]) = return (Bool (x == y))
-equal args = evalErr $ "= need two args, got" <> (toS (show args))
+equal args = evalErr $ "= need two args, got " <> (toS (show args))
+
+bintest :: (Integer -> Integer -> Bool) -> ReduceUnawareCommand
+bintest f ((Num x):(Num y):[]) = return $ Bool (f x y)
+bintest _ args = evalErr $ "bin test need two numbers got " <> (toS (show args))
 
 toStrictCmd :: ReduceUnawareCommand -> Command
 toStrictCmd f reducer sexps = do
@@ -154,6 +159,11 @@ strictCommands = [ ("prn", prn)
                  , ("*",binop (*))
                  , ("/",binop div)
                  , ("^",binop (^))
+                 -- bin numeric test
+                 , ("<",bintest (<))
+                 , ("<=",bintest (<=))
+                 , (">",bintest (>))
+                 , (">=",bintest (>=))
                  -- boolean bin ops
                  , ("and", bbinop (&&))
                  , ("or", bbinop (||))
