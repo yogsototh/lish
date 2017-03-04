@@ -12,7 +12,7 @@ import           Pipes
 import           Prelude                  (String, lines)
 import           Protolude                hiding (for, many, show, (<|>))
 import           System.Console.Haskeline
--- import           System.Environment       (getEnvironment)
+import           System.Environment       (getEnvironment)
 import           Text.Parsec              (ParseError)
 
 import           Lish.Eval
@@ -22,9 +22,8 @@ import           Lish.Types
 -- | Start an interactive lish shell
 runLish :: IO ()
 runLish = do
-  -- env <- toEnv <$> getEnvironment
-  -- runInputT defaultSettings (mainLoop env)
-  runInputT defaultSettings (mainLoop (toEnv []))
+  env <- toEnv <$> getEnvironment
+  runInputT defaultSettings (mainLoop env)
 
 -- | System Environment -> LISH Env
 toEnv :: [(String,String)] -> Env

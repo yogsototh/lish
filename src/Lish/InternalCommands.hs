@@ -63,7 +63,10 @@ getenv :: ReduceUnawareCommand
 getenv ((Atom varname):[]) = do
   hm <- get
   return $ fromMaybe Void (Map.lookup varname hm)
-getenv _ = evalErr "getenv need on atom as argument"
+getenv ((Str varname):[]) = do
+  hm <- get
+  return $ fromMaybe Void (Map.lookup varname hm)
+getenv _ = evalErr "getenv need on atom or a string as argument"
 
 -- | replace à la `sed s/old/new/g text`
 replace :: ReduceUnawareCommand
