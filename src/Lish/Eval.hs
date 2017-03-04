@@ -109,7 +109,9 @@ executeShell (Lambda args) = do
                                                               , std_out = CreatePipe }
       case result of
         Right (_, mb_hout, _, _) -> return $ Stream mb_hout
-        Left ex                  -> shellErr ("[shell 1/2] " <> (show (Lambda args)) <> "\n[shell 2/2] " <> show ex)
+        Left ex                  -> shellErr ("Unknow fn or cmd: "
+                                              <> toS cmd
+                                              <> "\n" <> show ex)
     _ -> shellErr "empty lambda!"
   where
     trySh :: IO a -> IO (Either IOException a)
