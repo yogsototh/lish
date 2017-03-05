@@ -38,7 +38,7 @@ data SExp = Atom Text
           | WaitingStream CmdStream
           deriving (Eq,Show)
 
-data LishType = LAtom
+data LishType = LCommand
               | LNum
               | LBool
               | LStr
@@ -57,7 +57,7 @@ repr (Str s)           = "\"" <> toS s <> "\""
 repr (List sexprs)     = "[" <> (Text.intercalate " " (map repr sexprs)) <> "]"
 repr (Lambda sexprs)   = "(" <> (Text.intercalate " " (map repr sexprs)) <> ")"
 repr Void              = "ε"
-repr (Fn p _ _)        = "(λ" <> (Text.intercalate "." p) <> ". ... )"
+repr (Fn p _ _ _)      = "(λ" <> (Text.intercalate "." p) <> ". ... )"
 repr (Stream _)        = "<stream>"
 repr (WaitingStream _) = "<w-stream>"
 

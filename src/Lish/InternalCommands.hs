@@ -134,6 +134,7 @@ fn reducer (p:bodies) = do
         then return (Fn { params = catMaybes parameters
                         , body = Lambda $ (Atom "do"):bodies
                         , closure = mempty
+                        , types = ([],LCommand)
                         })
         else return Void
     _ -> return Void

@@ -31,18 +31,21 @@ infer ctx (List (expr:exprs)) = do
       Right _     -> return $ LList t
 infer ctx (Atom a) = case Map.lookup a ctx of
   Just t  -> return t
-  Nothing -> return LAtom
-infer ctx (Fn params body _ types) = do
-  let newCtx = Map.union ctx (Map.frommList (zip params (fst types)))
-  check newCtx body (snd type) >>= return $ LFn (fst types) (snd types)
-infer ctx (Lambda (Fn params _ _ (ptypes,retType)):exprs) =
-  if length params /= length exprs
+  Nothing -> Left . TypeError $ "Undefined atom: " <> toS a
+infer ctx (Fn parameters fnbody _ (ptypes,retType)) = do
+  let newCtx = Map.union ctx (Map.fromList (zip parameters ptypes))
+  checkType newCtx fnbody retType
+  return $ LFn ptypes retType
+infer ctx (Lambda ((Fn fnparams _ _ (ptypes,retType)):exprs)) =
+  if length fnparams /= length exprs
   then Left (TypeError "Fn applied to the wrong number of parameters")
   else do
-    types <- map (infer ctx) params
-    if types /= ptypes
-      then Left (TypeError ("Expected " <> show ptypes <> " bug got " <> types))
+    inferedTypes <- mapM (infer ctx) exprs
+    if inferedTypes /= ptypes
+      then Left . TypeError $ "Expected " <> show ptypes
+                              <> " bug got " <> show inferedTypes
       else return retType
+infer _ (Lambda _) = Left . TypeError $ "First element of a lambda must be a Fn or a Command"
 infer _ sexp = Left . TypeError $ "can't infer the type of " <> show sexp
 
 -- | Check the type of some expression regarding a type context
@@ -83,7 +86,7 @@ reduceLambda (Lambda (expr:exprs)) = do
                 Nothing -> do
                   reducedArgs <- mapM reduceLambda exprs
                   executeShell (Lambda ((Atom f):reducedArgs))
-        f@(Fn _ _ _) -> applyFn f exprs
+        f@(Fn _ _ _ _) -> applyFn f exprs
         s  -> do
           reducedArgs <- mapM reduceLambda exprs
           executeShell (Lambda (s:reducedArgs))
@@ -95,7 +98,7 @@ reduceLambda (Atom x) = do
 reduceLambda x          = return x
 
 applyFn :: SExp -> ReduceUnawareCommand
-applyFn (Fn par bod clos) args =
+applyFn (Fn par bod clos _) args =
   if length par /= length args
     then shellErr "wrong number of arguments"
     else do
@@ -112,8 +115,8 @@ tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
 tryEnvCommand f args = do
   envcmd <- get
   case Map.lookup f envcmd of
-    Just fn@(Fn _ _ _) -> Just <$> (applyFn fn args)
-    _                  -> return Nothing
+    Just fn@(Fn _ _ _ _) -> Just <$> (applyFn fn args)
+    _                    -> return Nothing
 
 
 tryInternalCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
