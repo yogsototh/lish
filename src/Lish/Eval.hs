@@ -4,6 +4,7 @@
 -- | Lish parser
 module Lish.Eval
   ( reduceLambda
+  , checkType
   )
   where
 
@@ -15,6 +16,42 @@ import           System.Process        hiding (env)
 import           Lish.InternalCommands (toArg)
 import qualified Lish.InternalCommands as InternalCommands
 import           Lish.Types            hiding (show)
+
+-- | Infer the type of an expression
+infer :: Context -> SExp -> Either TypeError LishType
+infer _ Void = return LVoid
+infer _ (Num _) = return LNum
+infer _ (Bool _) = return LBool
+infer _ (Str _) = return LStr
+infer ctx (List (expr:exprs)) = do
+  case infer ctx expr of
+    Left terr -> Left terr
+    Right t -> case mapM (\e -> checkType ctx e t) exprs of
+      Left terror -> Left terror
+      Right _     -> return $ LList t
+infer ctx (Atom a) = case Map.lookup a ctx of
+  Just t  -> return t
+  Nothing -> return LAtom
+infer ctx (Fn params body _ types) = do
+  let newCtx = Map.union ctx (Map.frommList (zip params (fst types)))
+  check newCtx body (snd type) >>= return $ LFn (fst types) (snd types)
+infer ctx (Lambda (Fn params _ _ (ptypes,retType)):exprs) =
+  if length params /= length exprs
+  then Left (TypeError "Fn applied to the wrong number of parameters")
+  else do
+    types <- map (infer ctx) params
+    if types /= ptypes
+      then Left (TypeError ("Expected " <> show ptypes <> " bug got " <> types))
+      else return retType
+infer _ sexp = Left . TypeError $ "can't infer the type of " <> show sexp
+
+-- | Check the type of some expression regarding a type context
+checkType :: Context -> SExp -> LishType -> Either TypeError ()
+checkType ctx expr ty = infer ctx expr >>= \ inferedType ->
+  if inferedType == ty
+  then return ()
+  else Left (TypeError ("Expected Type" <> show ty
+                         <> " but got type " <> show inferedType))
 
 -- | The main evaluation function
 -- its real type should be something isomorphic to
@@ -54,7 +91,7 @@ reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
     Just s -> return s
-    _ -> return $ Atom x
+    _      -> return $ Atom x
 reduceLambda x          = return x
 
 applyFn :: SExp -> ReduceUnawareCommand
@@ -76,14 +113,14 @@ tryEnvCommand f args = do
   envcmd <- get
   case Map.lookup f envcmd of
     Just fn@(Fn _ _ _) -> Just <$> (applyFn fn args)
-    _       -> return Nothing
+    _                  -> return Nothing
 
 
 tryInternalCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
 tryInternalCommand f args =
   case InternalCommands.lookup f of
     Just (fn) -> Just <$> fn reduceLambda args
-    _       -> return Nothing
+    _         -> return Nothing
 
 -- | take a SExp
 toStdIn :: SExp -> Maybe Handle

@@ -9,6 +9,9 @@ module Lish.Types
   , CmdStream
   , Command
   , ReduceUnawareCommand
+  -- types
+  , LishType(..)
+  , Context
   )
 where
 
@@ -29,10 +32,22 @@ data SExp = Atom Text
           | Fn { params  :: [Text]
                , body    :: SExp
                , closure :: Env
+               , types :: ([LishType],LishType)
                }
           | Stream CmdStream
           | WaitingStream CmdStream
           deriving (Eq,Show)
+
+data LishType = LAtom
+              | LNum
+              | LBool
+              | LStr
+              | LList LishType
+              | LFn [LishType] LishType
+              | LVoid
+              deriving (Eq,Show)
+
+type Context = Map.Map Text LishType
 
 repr :: SExp -> Text
 repr (Atom s)          = s
