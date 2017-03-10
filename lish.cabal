@@ -29,11 +29,13 @@ library
   ghc-options:       -Wall -Werror -O2
   hs-source-dirs:    src
   exposed-modules:   Lib
+                   , Lish.Balanced
                    , Lish.Core
                    , Lish.Eval
                    , Lish.InternalCommands
                    , Lish.Parser
                    , Lish.Types
+                   , Data.Stack
   build-depends:     base >= 4.8 && < 5
                    , containers
                    , haskeline

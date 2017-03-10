@@ -4,6 +4,7 @@ module Lish.Test.Parser
 where
 
 import Protolude
+
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.SmallCheck

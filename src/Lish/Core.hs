@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 -- | Lish core
 module Lish.Core
   (
@@ -15,15 +16,17 @@ import           System.Console.Haskeline
 import           System.Environment       (getEnvironment)
 import           Text.Parsec              (ParseError)
 
-import           Lish.Eval
-import           Lish.Parser
+import           Lish.Balanced            (checkBalanced, Balanced(..))
+import           Lish.Eval                (reduceLambda)
+import           Lish.Parser              (parseCmd)
 import           Lish.Types
 
 -- | Start an interactive lish shell
 runLish :: IO ()
 runLish = do
   env <- toEnv <$> getEnvironment
-  runInputT defaultSettings (mainLoop env)
+  runInputT (defaultSettings { historyFile = Just ".lish-history" })
+    (mainLoop Nothing env "")
 
 -- | System Environment -> LISH Env
 toEnv :: [(String,String)] -> Env
@@ -33,20 +36,40 @@ toEnv env =
   Map.fromList
 
 -- | Main REPL loop / Interpreter
-mainLoop :: Env -> InputT IO ()
-mainLoop env = do
-  let prompt = case Map.lookup "PROMPT" env of
-                 Just (Str p) -> p
-                 _            -> ":€ > "
-  maybeLine <- getInputLine (toS prompt)
+-- the first argument is a @Maybe Char@ it contains the char in the stack
+-- that verify if the expression is balanced.
+-- So if the first argument is not Nothing, it means we are in the middle
+-- of a multiline expression.
+mainLoop :: Maybe Char -- ^ Check to know if we are in the middle of the writting of a multiline expression
+         -> Env -- ^ The Lish environement
+         -> Text -- ^ The previous partial input (if in the middle of a multiline expression)
+         -> InputT IO ()
+mainLoop mc env previousPartialnput = do
+  maybeLine <- getInputLine (toS (prompt mc env))
   case maybeLine of
-    -- EOF / control-d
-    Nothing -> outputStrLn "bye bye!"
-    Just "exit" -> outputStrLn "bye bye!"
-    Just "logout" -> outputStrLn "bye bye!"
+    x | x `elem` [ Nothing -- EOF / control-d
+                 , Just "bye"
+                 , Just "exit"
+                 , Just "logout"] -> outputStrLn "bye bye!"
+
     Just line -> do
-      newenv <- eval env (parseCmd ("(" <> toS line <> ")"))
-      mainLoop newenv
+      let exprs = previousPartialnput
+                  <> (if isJust mc then " " else "")
+                  <> toS line
+      case checkBalanced exprs empty of
+        Unbalanced c -> mainLoop (Just c) env exprs
+        Balanced -> do
+          newenv <- eval env (parseCmd ("(" <> exprs <> ")"))
+          mainLoop Nothing newenv ""
+
+    _ -> panic "That should NEVER Happens, please file bug"
+
+prompt :: Maybe Char -> Env -> Text
+prompt mc env = case mc of
+                  Just _ -> ">>> "
+                  Nothing -> case Map.lookup "PROMPT" env of
+                     Just (Str p) -> p
+                     _            -> ":€ > "
 
 -- | Eval the reduced form
 evalReduced :: SExp -> IO ()

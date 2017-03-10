@@ -3,8 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | Lish parser
 module Lish.Eval
-  ( reduceLambda
-  , checkType
+  ( checkType
+  , reduceLambda
   )
   where
 

@@ -2,10 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | Lish parser
 module Lish.Parser
-  (parseCmd)
+  ( parseCmd )
   where
 
-import           Protolude   hiding (for, many, (<|>), optional)
+import           Protolude        hiding (for, many, optional, try, (<|>))
 import           Text.Parsec
 import           Text.Parsec.Text
 
@@ -29,9 +29,9 @@ parseAtom = do
   frst <- (noneOf " \t()[]\"")
   rest <- many (noneOf " \t()[]")
   case frst:rest of
-    "true" -> return (Bool True)
+    "true"  -> return (Bool True)
     "false" -> return (Bool False)
-    x -> return (Atom (toS x))
+    x       -> return (Atom (toS x))
 
 parseString :: Parser SExp
 parseString = (Str . toS) <$> between (char '"')
