@@ -1,12 +1,12 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
 -- | Lish core
 module Lish.Core
   (
     runLish
   ) where
 
+import           Data.Fix
 import qualified Data.Map.Strict          as Map
 import           GHC.IO.Handle            (hGetContents)
 import           Pipes
@@ -16,7 +16,7 @@ import           System.Console.Haskeline
 import           System.Environment       (getEnvironment)
 import           Text.Parsec              (ParseError)
 
-import           Lish.Balanced            (checkBalanced, Balanced(..))
+import           Lish.Balanced            (Balanced (..), checkBalanced)
 import           Lish.Eval                (reduceLambda)
 import           Lish.Parser              (parseCmd)
 import           Lish.Types
@@ -59,7 +59,7 @@ mainLoop mc env previousPartialnput = do
       case checkBalanced exprs empty of
         Unbalanced c -> mainLoop (Just c) env exprs
         Balanced -> do
-          newenv <- eval env (parseCmd ("(" <> exprs <> ")"))
+          newenv <- eval env (fmap unFix (parseCmd ("(" <> exprs <> ")")))
           mainLoop Nothing newenv ""
 
     _ -> panic "That should NEVER Happens, please file bug"
@@ -86,7 +86,7 @@ evalReduced (WaitingStream (Just h)) = do
   let splittedLines = lines cmdoutput
       producer = mapM_ yield splittedLines
   runEffect (for producer (lift . putStrLn))
-evalReduced x = putStrLn (repr x)
+evalReduced x = putStrLn (pprint (Fix x))
 
 -- | Evaluate the parsed expr
 eval :: Env -> Either ParseError SExp -> InputT IO Env

@@ -5,10 +5,10 @@ where
 
 import Protolude
 
+import Data.Fix
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.SmallCheck
-
 
 import Lish.Parser
 import Lish.Types
@@ -22,13 +22,13 @@ parseTests =
   ]
 
 simpleCommand :: Text -> Assertion
-simpleCommand t = parseCmd t @?= Right (Atom t)
+simpleCommand t = parseCmd t @?= Right (Fix (Atom t))
 
 propAtom :: [Char] -> Bool
 propAtom s = s == "" ||
   fromMaybe '0' (head s) `elem` ("0123456789([])" :: [Char]) ||
   case s of
-  "true" -> parseCmd t == Right (Bool True)
-  "false" -> parseCmd t == Right (Bool False)
-  _ -> parseCmd t == Right (Atom t)
+  "true" -> parseCmd t == Right (Fix (Bool True))
+  "false" -> parseCmd t == Right (Fix (Bool False))
+  _ -> parseCmd t == Right (Fix (Atom t))
   where t = toS s

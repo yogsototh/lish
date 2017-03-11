@@ -17,9 +17,9 @@ import Data.Stack (Stack, pop, push)
 data Balanced = Balanced | Unbalanced Char deriving (Eq, Show)
 
 checkBalanced :: Text -> Stack Char -> Balanced
-checkBalanced (T.uncons -> Just ('(',suf)) stk = checkBalanced suf (push stk '(')
-checkBalanced (T.uncons -> Just ('[',suf)) stk = checkBalanced suf (push stk '[')
-checkBalanced (T.uncons -> Just ('{',suf)) stk = checkBalanced suf (push stk '{')
+checkBalanced (T.uncons -> Just ('(',suf)) stk = checkBalanced suf (push '(' stk)
+checkBalanced (T.uncons -> Just ('[',suf)) stk = checkBalanced suf (push '[' stk)
+checkBalanced (T.uncons -> Just ('{',suf)) stk = checkBalanced suf (push '{' stk)
 
 checkBalanced (T.uncons -> Just (')',suf)) (pop -> Just ('(',stk)) = checkBalanced suf stk
 checkBalanced (T.uncons -> Just (')',_)) _ = Unbalanced ')'

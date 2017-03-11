@@ -7,6 +7,7 @@ module Lish.InternalCommands
   )
   where
 
+import Data.Fix
 import qualified Data.Map.Strict    as Map
 import qualified Data.Text          as Text
 import           GHC.IO.Handle      (hGetContents)
@@ -132,13 +133,13 @@ fn reducer (p:bodies) = do
       let  parameters = map fromAtom args
       if all isJust parameters
         then return (Fn { params = catMaybes parameters
-                        , body = Lambda $ (Atom "do"):bodies
+                        , body = Fix . Lambda . map Fix $ (Atom "do"):bodies
                         , closure = mempty
                         , types = ([],LCommand)
                         })
         else return Void
     _ -> return Void
-  where fromAtom (Atom a) = Just a
+  where fromAtom (Fix (Atom a)) = Just a
         fromAtom _ = Nothing
 fn _ _ = return Void
 

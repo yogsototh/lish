@@ -1,4 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE Safe              #-}
+
 module Data.Stack
   ( Stack
   , pop
@@ -8,10 +10,10 @@ module Data.Stack
   )
   where
 
-import Protolude
+import           Protolude
 
 -- | Stack data structure
-data Stack a = Stack [a] deriving (Eq,Show)
+data Stack a = Stack ![a] deriving (Eq,Show)
 
 instance Functor Stack where
   fmap f (Stack xs) = Stack (fmap f xs)
@@ -24,33 +26,34 @@ instance Alternative Stack where
   empty = Stack []
   (<|>) (Stack xs) (Stack ys) = Stack (xs <|> ys)
 
--- | push to the stack
+-- | O(1) Push to the stack
 --
--- >>> push empty 0
+-- >>> push 0 empty
 -- Stack [0]
 --
--- >>> push (push empty 0) 1
+-- >>> empty & push 0 & push 1
 -- Stack [1,0]
-push :: Stack a -> a -> Stack a
-push (Stack xs) x = Stack (x:xs)
+push :: a -> Stack a -> Stack a
+push x (Stack xs) = Stack (x:xs)
 
 -- | pop an element from the stack
 --
--- >>> pop (push empty 0)
--- Just (0,Stack [])
---
--- >>> pop (push (push empty 0) 1)
--- Just (1,Stack [0])
---
 -- >>> pop empty
 -- Nothing
+--
+-- >>> pop (push 0 empty)
+-- Just (0,Stack [])
+--
+-- >>> pop (empty & push 0 & push 1)
+-- Just (1,Stack [0])
+--
 pop :: Stack a -> Maybe (a, Stack a)
 pop (Stack (x:xs)) = Just (x, Stack xs)
-pop _ = Nothing
+pop _              = Nothing
 
 -- | get the element at the top of the stack
 --
--- >>> top (push empty 'c')
+-- >>> top (push 'c' empty)
 -- Just 'c'
 --
 -- >>> top empty
@@ -63,7 +66,7 @@ top stk = fmap fst (pop stk)
 -- >>> size empty
 -- 0
 --
--- >>> size (push (push empty 0) 1)
+-- >>> size (empty & push 0 & push 1)
 -- 2
 size :: Stack a -> Int
 size (Stack l) = length l

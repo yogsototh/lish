@@ -9,6 +9,7 @@ module Lish.Eval
   where
 
 import qualified Control.Exception     as Exception
+import           Data.Fix
 import qualified Data.Map.Strict       as Map
 import           Protolude
 import           System.Process        hiding (env)
@@ -23,10 +24,10 @@ infer _ Void = return LVoid
 infer _ (Num _) = return LNum
 infer _ (Bool _) = return LBool
 infer _ (Str _) = return LStr
-infer ctx (List (expr:exprs)) = do
+infer ctx (List ((Fix expr):exprs)) = do
   case infer ctx expr of
     Left terr -> Left terr
-    Right t -> case mapM (\e -> checkType ctx e t) exprs of
+    Right t -> case mapM (\e -> checkType ctx e t) (map unFix exprs) of
       Left terror -> Left terror
       Right _     -> return $ LList t
 infer ctx (Atom a) = case Map.lookup a ctx of
@@ -34,13 +35,13 @@ infer ctx (Atom a) = case Map.lookup a ctx of
   Nothing -> Left . TypeError $ "Undefined atom: " <> toS a
 infer ctx (Fn parameters fnbody _ (ptypes,retType)) = do
   let newCtx = Map.union ctx (Map.fromList (zip parameters ptypes))
-  checkType newCtx fnbody retType
+  checkType newCtx (unFix fnbody) retType
   return $ LFn ptypes retType
-infer ctx (Lambda ((Fn fnparams _ _ (ptypes,retType)):exprs)) =
+infer ctx (Lambda ((Fix (Fn fnparams _ _ (ptypes,retType))):exprs)) =
   if length fnparams /= length exprs
   then Left (TypeError "Fn applied to the wrong number of parameters")
   else do
-    inferedTypes <- mapM (infer ctx) exprs
+    inferedTypes <- mapM (infer ctx) (map unFix exprs)
     if inferedTypes /= ptypes
       then Left . TypeError $ "Expected " <> show ptypes
                               <> " bug got " <> show inferedTypes
@@ -60,11 +61,12 @@ checkType ctx expr ty = infer ctx expr >>= \ inferedType ->
 -- its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
 reduceLambda :: SExp -> StateT Env IO SExp
-reduceLambda (Lambda (expr:exprs)) = do
+reduceLambda (Lambda (Fix expr:fexprs)) = do
+  let exprs = map unFix fexprs
   reduced <- reduceLambda expr
   redred <- reduceLambda reduced
   if redred /= reduced
-    then reduceLambda (Lambda (reduced:exprs))
+    then reduceLambda (Lambda . map Fix $ (reduced:exprs))
     else do
       -- DEBUG --env <- get
       -- DEBUG --liftIO $ do
@@ -85,11 +87,11 @@ reduceLambda (Lambda (expr:exprs)) = do
                 Just x  -> return x
                 Nothing -> do
                   reducedArgs <- mapM reduceLambda exprs
-                  executeShell (Lambda ((Atom f):reducedArgs))
+                  executeShell (Lambda . map Fix $ ((Atom f):reducedArgs))
         f@(Fn _ _ _ _) -> applyFn f exprs
         s  -> do
           reducedArgs <- mapM reduceLambda exprs
-          executeShell (Lambda (s:reducedArgs))
+          executeShell (Lambda . map Fix $ (s:reducedArgs))
 reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
@@ -106,7 +108,7 @@ applyFn (Fn par bod clos _) args =
       currentEnv <- get
       -- Run the function in its own closure
       fmap fst $ liftIO $
-        runStateT (reduceLambda bod) (Map.union currentEnv localClosure)
+        runStateT (reduceLambda (unFix bod)) (Map.union currentEnv localClosure)
   where
     bindVars oldenv newvars = Map.union oldenv (Map.fromList newvars)
 applyFn x _ = return x
@@ -138,8 +140,8 @@ shellErr errmsg = do
 -- | Execute a shell command
 executeShell :: SExp -> StateT Env IO SExp
 executeShell (Lambda args) = do
-  res <- (mapM toArg args) >>= return . catMaybes
-  let argsHandle = (filter isJust (map toStdIn args))
+  res <- (mapM toArg (map unFix args)) >>= return . catMaybes
+  let argsHandle = (filter isJust (map toStdIn (map unFix args)))
       stdinhandle = case argsHandle of
                       (Just h:_) -> UseHandle h
                       _          -> Inherit

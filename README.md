@@ -1,6 +1,8 @@
 lish
 ==========
 
+[![Build Status](https://travis-ci.org/yogsototh/lish.svg?branch=master)](https://travis-ci.org/yogsototh/lish)
+
 This project is an experimental LISP flavoured Shell
 
 ## Build
