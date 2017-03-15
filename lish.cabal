@@ -1,92 +1,138 @@
-name:                lish
-version:             0.1.0.0
--- synopsis:
-description:         LISP Shell written in Haskell
+-- This file has been generated from package.yaml by hpack version 0.17.0.
+--
+-- see: https://github.com/sol/hpack
 
-license:             ISC
-license-file:        LICENSE
-author:              Yann Esposito
-maintainer:          yann.esposito@gmail.com
-copyright:           © 2017 Yann Esposito
-homepage:            https://github.com/yogsototh/lish
-bug-reports:         https://github.com/yogsototh/lish/issues
-
-category:            Test
-build-type:          Simple
-stability:           alpha (experimental)
-cabal-version:       >=1.10
+name:           lish
+version:        0.1.0.0
+synopsis:       LISP flavoured shell
+description:    See README.md at <https://github.com/yogsototh/lish#readme>
+category:       Development
+homepage:       https://github.com/yogsototh/lish#readme
+bug-reports:    https://github.com/yogsototh/lish/issues
+maintainer:     Yann Esposito <yann.esposito@gmail.com>
+license:        PublicDomain
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
 extra-source-files:
-  README.md
-  stack.yaml
+    README.md
+    stack.yaml
 
 source-repository head
-  type:     git
+  type: git
   location: https://github.com/yogsototh/lish
 
 library
-  default-language:  Haskell2010
-  ghc-options:       -Wall -Werror -O2
-  hs-source-dirs:    src
-  exposed-modules:   Lib
-                   , Lish.Balanced
-                   , Lish.Core
-                   , Lish.Eval
-                   , Lish.InternalCommands
-                   , Lish.Parser
-                   , Lish.Types
-                   , Data.Stack
-  build-depends:     base >= 4.8 && < 5
-                   , containers
-                   , data-fix
-                   , haskeline
-                   , parsec >= 3 && < 4
-                   , pipes
-                   , protolude
-                   , process
-                   , text
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Werror -O2
+  build-depends:
+      base >= 4.8 && < 5
+    , containers
+    , data-fix
+    , haskeline
+    , parsec >= 3 && < 4
+    , pipes
+    , protolude
+    , process
+    , text
+  exposed-modules:
+      Data.Stack
+      Lib
+      Lish.Balanced
+      Lish.Core
+      Lish.Eval
+      Lish.InternalCommands
+      Lish.Parser
+      Lish.Types
+  default-language: Haskell2010
 
-executable lish-exe
-  default-language:  Haskell2010
-  ghc-options:       -Wall -Werror -dynamic -O2 -threaded -rtsopts -with-rtsopts=-N
-  hs-source-dirs:    src-exe
-  main-is:           Main.hs
-  build-depends:     base >= 4.8 && < 5
-                   , lish
+executable lish
+  main-is: Main.hs
+  hs-source-dirs:
+      src-exe
+  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >= 4.8 && < 5
+    , containers
+    , data-fix
+    , haskeline
+    , parsec >= 3 && < 4
+    , pipes
+    , protolude
+    , process
+    , text
+    , lish
+  default-language: Haskell2010
 
-test-suite lish-test
-  type:              exitcode-stdio-1.0
-  default-language:  Haskell2010
-  ghc-options:       -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
-  hs-source-dirs:    src-test
-  main-is:           Main.hs
-  other-modules:     Lish.Test.Parser
-  build-depends:     base >= 4.8 && < 5
-                   , tasty >= 0.11
-                   , tasty-hunit >= 0.9
-                   , tasty-smallcheck >= 0.8
-                   , lish
-                   , protolude
-                   , data-fix
+test-suite lish-benchmark
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs:
+      src-benchmark
+  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >= 4.8 && < 5
+    , containers
+    , data-fix
+    , haskeline
+    , parsec >= 3 && < 4
+    , pipes
+    , protolude
+    , process
+    , text
+    , lish
+    , base >= 4.8 && < 5
+    , criterion >= 1.1
+  default-language: Haskell2010
 
 test-suite lish-doctest
-  type:              exitcode-stdio-1.0
-  default-language:  Haskell2010
-  ghc-options:       -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
-  hs-source-dirs:    src-doctest
-  main-is:           Main.hs
-  build-depends:     base >= 4.8 && < 5
-                   , doctest >=0.10
-                   , Glob >= 0.7
-                   , QuickCheck >= 2.5
-                   , lish
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs:
+      src-doctest
+  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >= 4.8 && < 5
+    , containers
+    , data-fix
+    , haskeline
+    , parsec >= 3 && < 4
+    , pipes
+    , protolude
+    , process
+    , text
+    , lish
+    , base >= 4.8 && < 5
+    , doctest >=0.10
+    , Glob >= 0.7
+    , QuickCheck >= 2.5
+  default-language: Haskell2010
 
-benchmark lish-benchmark
-  type:              exitcode-stdio-1.0
-  default-language:  Haskell2010
-  ghc-options:       -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
-  hs-source-dirs:    src-benchmark
-  main-is:           Main.hs
-  build-depends:     base >= 4.8 && < 5
-                   , criterion >= 1.1
-                   , lish
+test-suite lish-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs:
+      src-test
+  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >= 4.8 && < 5
+    , containers
+    , data-fix
+    , haskeline
+    , parsec >= 3 && < 4
+    , pipes
+    , protolude
+    , process
+    , text
+    , lish
+    , base >= 4.8 && < 5
+    , tasty >= 0.11
+    , tasty-hunit >= 0.9
+    , tasty-smallcheck >= 0.8
+    , protolude
+    , data-fix
+  other-modules:
+      Lish.Test.Parser
+  default-language: Haskell2010

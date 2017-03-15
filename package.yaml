@@ -1,0 +1,68 @@
+name: lish
+version: 0.1.0.0
+synopsis: LISP flavoured shell
+description: See README.md at <https://github.com/yogsototh/lish#readme>
+maintainer: Yann Esposito <yann.esposito@gmail.com>
+license: PublicDomain
+github: yogsototh/lish
+category: Development
+extra-source-files:
+  - README.md
+  - stack.yaml
+
+ghc-options: -Wall -Werror -O2
+
+dependencies:
+  - base >= 4.8 && < 5
+  - containers
+  - data-fix
+  - haskeline
+  - parsec >= 3 && < 4
+  - pipes
+  - protolude
+  - process
+  - text
+
+library:
+  source-dirs: src
+
+executables:
+  lish:
+    ghc-options: -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+    main: Main.hs
+    source-dirs: src-exe
+    dependencies:
+      - lish
+
+tests:
+  lish-test:
+    source-dirs: src-test
+    main: Main.hs
+    ghc-options: -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - lish
+      - base >= 4.8 && < 5
+      - tasty >= 0.11
+      - tasty-hunit >= 0.9
+      - tasty-smallcheck >= 0.8
+      - protolude
+      - data-fix
+  lish-doctest:
+    source-dirs: src-doctest
+    main: Main.hs
+    ghc-options: -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - lish
+      - base >= 4.8 && < 5
+      - doctest >=0.10
+      - Glob >= 0.7
+      - QuickCheck >= 2.5
+  lish-benchmark:
+    source-dirs: src-benchmark
+    main: Main.hs
+    ghc-options: -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - lish
+      - base >= 4.8 && < 5
+      - criterion >= 1.1
+
