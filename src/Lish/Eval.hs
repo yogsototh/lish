@@ -57,6 +57,11 @@ checkType ctx expr ty = infer ctx expr >>= \ inferedType ->
   else Left (TypeError ("Expected Type" <> show ty
                          <> " but got type " <> show inferedType))
 
+isReduced :: SExp -> Bool
+isReduced (Atom _) = False
+isReduced (Lambda _) = False
+isReduced _ = True
+
 -- | The main evaluation function
 -- its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
@@ -64,10 +69,8 @@ reduceLambda :: SExp -> StateT Env IO SExp
 reduceLambda (Lambda (Fix expr:fexprs)) = do
   let exprs = map unFix fexprs
   reduced <- reduceLambda expr
-  redred <- reduceLambda reduced
-  if redred /= reduced
-    then reduceLambda (Lambda . map Fix $ (reduced:exprs))
-    else do
+  if isReduced reduced
+    then do
       -- DEBUG --env <- get
       -- DEBUG --liftIO $ do
       -- DEBUG --  putText "Lambda:"
@@ -87,16 +90,19 @@ reduceLambda (Lambda (Fix expr:fexprs)) = do
                 Just x  -> return x
                 Nothing -> do
                   reducedArgs <- mapM reduceLambda exprs
-                  executeShell (Lambda . map Fix $ ((Atom f):reducedArgs))
+                  executeCommand (Command (Fix (Str f))
+                                          (map Fix reducedArgs))
         f@(Fn _ _ _ _) -> applyFn f exprs
         s  -> do
           reducedArgs <- mapM reduceLambda exprs
-          executeShell (Lambda . map Fix $ (s:reducedArgs))
+          executeCommand $ Command (Fix s) (map Fix reducedArgs)
+    else reduceLambda (Lambda . map Fix $ (reduced:exprs))
+reduceLambda command@(Command _ _) = executeCommand command
 reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
     Just s -> return s
-    _      -> return $ Atom x
+    _      -> return $ Str x
 reduceLambda x          = return x
 
 applyFn :: SExp -> ReduceUnawareCommand
@@ -138,24 +144,25 @@ shellErr errmsg = do
   return Void
 
 -- | Execute a shell command
-executeShell :: SExp -> StateT Env IO SExp
-executeShell (Lambda args) = do
+executeCommand :: SExp -> StateT Env IO SExp
+executeCommand (Command (Fix (Str cmdName)) args) = do
   res <- (mapM toArg (map unFix args)) >>= return . catMaybes
   let argsHandle = (filter isJust (map toStdIn (map unFix args)))
       stdinhandle = case argsHandle of
                       (Just h:_) -> UseHandle h
                       _          -> Inherit
   case (map toS res) of
-    (cmd:sargs) -> do
-      result <- lift $ trySh $ createProcess (proc cmd sargs) { std_in = stdinhandle
-                                                              , std_out = CreatePipe }
+    sargs -> do
+      result <- lift . trySh $
+        createProcess (proc (toS cmdName) sargs)
+                      { std_in = stdinhandle
+                      , std_out = CreatePipe }
       case result of
         Right (_, mb_hout, _, _) -> return $ Stream mb_hout
         Left ex                  -> shellErr ("Unknow fn or cmd: "
-                                              <> toS cmd
+                                              <> toS cmdName
                                               <> "\n" <> show ex)
-    _ -> shellErr "empty lambda!"
   where
     trySh :: IO a -> IO (Either IOException a)
     trySh = Exception.try
-executeShell _ = shellErr "[shell] not a lambda!"
+executeCommand _ = shellErr "[shell] not a lambda!"

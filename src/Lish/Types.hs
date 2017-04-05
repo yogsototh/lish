@@ -39,6 +39,8 @@ data ExprF a = Atom Text
                   , closure :: Env
                   , types   :: ([LishType],LishType)
                   }
+             | Command { _cmdName :: a
+                       , _cmdArgs :: [a]}
              | Stream CmdStream
              | WaitingStream CmdStream
              deriving (Eq,Show,Functor)
@@ -65,6 +67,7 @@ repr (Str s)           = "\"" <> toS s <> "\""
 repr (List sexprs)     = "[" <> (Text.intercalate " " sexprs) <> "]"
 repr (Lambda sexprs)   = "(" <> (Text.intercalate " " sexprs) <> ")"
 repr Void              = "ε"
+repr (Command n args)  = "($ " <> n <> (Text.intercalate " " args) <> ")"
 repr (Fn p _ _ _)      = "(λ" <> (Text.intercalate "." p) <> ". ... )"
 repr (Stream _)        = "<stream>"
 repr (WaitingStream _) = "<w-stream>"
