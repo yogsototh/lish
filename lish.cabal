@@ -26,7 +26,7 @@ source-repository head
 library
   hs-source-dirs:
       src
-  ghc-options: -Wall -Werror -O2
+  ghc-options: -Wall -O2
   build-depends:
       base >= 4.8 && < 5
     , containers
@@ -52,7 +52,7 @@ executable lish
   main-is: Main.hs
   hs-source-dirs:
       src-exe
-  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.8 && < 5
     , containers
@@ -71,7 +71,7 @@ test-suite lish-benchmark
   main-is: Main.hs
   hs-source-dirs:
       src-benchmark
-  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.8 && < 5
     , containers
@@ -92,7 +92,7 @@ test-suite lish-doctest
   main-is: Main.hs
   hs-source-dirs:
       src-doctest
-  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.8 && < 5
     , containers
@@ -115,7 +115,7 @@ test-suite lish-test
   main-is: Main.hs
   hs-source-dirs:
       src-test
-  ghc-options: -Wall -Werror -O2 -Wall -Werror -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.8 && < 5
     , containers

@@ -65,45 +65,40 @@ isReduced _ = True
 -- | The main evaluation function
 -- its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
-reduceLambda :: SExp -> StateT Env IO SExp
-reduceLambda (Lambda (Fix expr:fexprs)) = do
+_reduceLambda :: SExp -> StateT Env IO SExp
+_reduceLambda (Lambda (Fix expr:fexprs)) = do
   let exprs = map unFix fexprs
   reduced <- reduceLambda expr
   if isReduced reduced
     then do
-      -- DEBUG --env <- get
-      -- DEBUG --liftIO $ do
-      -- DEBUG --  putText "Lambda:"
-      -- DEBUG --  print $ (expr:exprs)
-      -- DEBUG --  putText "Env:"
-      -- DEBUG --  print env
-      -- DEBUG --  putText "Reduced Head:"
-      -- DEBUG --  print reduced
       case reduced of
-        Atom f -> do
-          resultInternal <- tryInternalCommand f exprs
-          case resultInternal of
-            Just x -> return x
-            Nothing -> do
-              resultEnv <- tryEnvCommand f exprs
-              case resultEnv of
-                Just x  -> return x
-                Nothing -> do
-                  reducedArgs <- mapM reduceLambda exprs
-                  executeCommand (Command (Fix (Str f))
-                                          (map Fix reducedArgs))
+        Internal command -> (_commandFn command) reduceLambda exprs
         f@(Fn _ _ _ _) -> applyFn f exprs
         s  -> do
           reducedArgs <- mapM reduceLambda exprs
-          executeCommand $ Command (Fix s) (map Fix reducedArgs)
+          executeCommand (Cmd (Fix s) (map Fix reducedArgs))
     else reduceLambda (Lambda . map Fix $ (reduced:exprs))
-reduceLambda command@(Command _ _) = executeCommand command
-reduceLambda (Atom x) = do
+_reduceLambda command@(Internal  _) = executeCommand command
+_reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
     Just s -> return s
-    _      -> return $ Str x
-reduceLambda x          = return x
+    _      -> case InternalCommands.lookup x of
+      Just cmd -> return (Internal cmd)
+      _         -> return (Str x)
+_reduceLambda x          = return x
+
+reduceLambda :: SExp -> StateT Env IO SExp
+reduceLambda x = do
+  -- DEBUG --env <- get
+  -- DEBUG --liftIO $ do
+  -- DEBUG --    putText "------"
+  -- DEBUG --    putStr ("Env: " :: Text)
+  -- DEBUG --    print env
+  -- DEBUG --    putStr ("Arg: " :: Text)
+  -- DEBUG --    putStrLn $ pprint (Fix x)
+  _reduceLambda x
+
 
 applyFn :: SExp -> ReduceUnawareCommand
 applyFn (Fn par bod clos _) args =
@@ -114,24 +109,10 @@ applyFn (Fn par bod clos _) args =
       currentEnv <- get
       -- Run the function in its own closure
       fmap fst $ liftIO $
-        runStateT (reduceLambda (unFix bod)) (Map.union currentEnv localClosure)
+        runStateT (reduceLambda (unFix bod)) (Map.union localClosure currentEnv)
   where
     bindVars oldenv newvars = Map.union oldenv (Map.fromList newvars)
 applyFn x _ = return x
-
-tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
-tryEnvCommand f args = do
-  envcmd <- get
-  case Map.lookup f envcmd of
-    Just fn@(Fn _ _ _ _) -> Just <$> (applyFn fn args)
-    _                    -> return Nothing
-
-
-tryInternalCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
-tryInternalCommand f args =
-  case InternalCommands.lookup f of
-    Just (fn) -> Just <$> fn reduceLambda args
-    _         -> return Nothing
 
 -- | take a SExp
 toStdIn :: SExp -> Maybe Handle
@@ -145,7 +126,7 @@ shellErr errmsg = do
 
 -- | Execute a shell command
 executeCommand :: SExp -> StateT Env IO SExp
-executeCommand (Command (Fix (Str cmdName)) args) = do
+executeCommand (Cmd (Fix (Str cmdName)) args) = do
   res <- (mapM toArg (map unFix args)) >>= return . catMaybes
   let argsHandle = (filter isJust (map toStdIn (map unFix args)))
       stdinhandle = case argsHandle of

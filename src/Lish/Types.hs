@@ -12,6 +12,7 @@ module Lish.Types
   , Env
   , CmdStream
   , Command
+  , InternalCommand (..)
   , ReduceUnawareCommand
   -- types
   , LishType(..)
@@ -34,16 +35,17 @@ data ExprF a = Atom Text
              | Lambda [a]
              | Void
               -- only exists during evaluation
+             | Internal InternalCommand
              | Fn { params  :: [Text]
                   , body    :: a
                   , closure :: Env
                   , types   :: ([LishType],LishType)
                   }
-             | Command { _cmdName :: a
-                       , _cmdArgs :: [a]}
+             | Cmd { _cmdName :: a
+                   , _cmdArgs :: [a]}
              | Stream CmdStream
              | WaitingStream CmdStream
-             deriving (Eq,Show,Functor)
+             deriving (Eq, Show, Functor)
 
 type Expr = Fix ExprF
 type SExp = ExprF Expr
@@ -61,13 +63,14 @@ type Context = Map Text LishType
 
 repr :: ExprF Text -> Text
 repr (Atom s)          = s
+repr (Internal (InternalCommand n _))    = n
 repr (Num n)           = toS $ show n
 repr (Bool b)          = if b then "true" else "false"
 repr (Str s)           = "\"" <> toS s <> "\""
 repr (List sexprs)     = "[" <> (Text.intercalate " " sexprs) <> "]"
 repr (Lambda sexprs)   = "(" <> (Text.intercalate " " sexprs) <> ")"
 repr Void              = "ε"
-repr (Command n args)  = "($ " <> n <> (Text.intercalate " " args) <> ")"
+repr (Cmd n args)  = "($ " <> n <> (Text.intercalate " " args) <> ")"
 repr (Fn p _ _ _)      = "(λ" <> (Text.intercalate "." p) <> ". ... )"
 repr (Stream _)        = "<stream>"
 repr (WaitingStream _) = "<w-stream>"
@@ -79,3 +82,10 @@ type CmdStream = Maybe Handle
 type Env = Map Text SExp
 type ReduceUnawareCommand = [SExp] -> StateT Env IO SExp
 type Command = (SExp -> StateT Env IO SExp) -> ReduceUnawareCommand
+data InternalCommand =
+  InternalCommand { _commandName :: Text
+                  , _commandFn :: Command }
+instance Show InternalCommand where
+  show x = toS (_commandName x)
+instance Eq InternalCommand where
+  (==) x y = (_commandName x) == (_commandName y)

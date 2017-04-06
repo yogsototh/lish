@@ -26,7 +26,7 @@ runLish :: IO ()
 runLish = do
   env <- toEnv <$> getEnvironment
   runInputT (defaultSettings { historyFile = Just ".lish-history" })
-    (mainLoop Nothing env "")
+    (mainLoop Nothing mempty "")
 
 -- | System Environment -> LISH Env
 toEnv :: [(String,String)] -> Env
