@@ -7,20 +7,21 @@ module Lish.InternalCommands
   )
   where
 
-import Data.Fix
+import           Data.Fix
 import qualified Data.Map.Strict    as Map
 import qualified Data.Text          as Text
 import           GHC.IO.Handle      (hGetContents)
-import           Lish.Types
 import           Protolude          hiding (show)
 import           System.Environment (setEnv)
+
+import           Lish.Types
 
 toArg :: SExp -> StateT Env IO (Maybe Text)
 toArg (Atom x)          = do
   env <- get
   return $ Just $ case Map.lookup x env of
     Just (Str s) -> s
-    _ -> toS x
+    _            -> toS x
 toArg (Str s)           = return $ Just $ toS s
 toArg (Num i) = return . Just . toS . show $ i
 toArg (Stream (Just h)) = lift $ fmap (Just . Text.strip .toS) (hGetContents h)
@@ -100,7 +101,7 @@ bbinop _ _ = evalErr "boolean binary operator need two booleans arguments"
 
 lnot :: ReduceUnawareCommand
 lnot ((Bool x):[]) = return ( Bool (not x))
-lnot _ = evalErr "not need a boolean"
+lnot _             = evalErr "not need a boolean"
 
 toWaitingStream :: ReduceUnawareCommand
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
@@ -108,18 +109,31 @@ toWaitingStream _                     = return Void
 
 equal :: ReduceUnawareCommand
 equal (x:y:[]) = return (Bool (x == y))
-equal args = evalErr $ "= need two args, got " <> (toS (show args))
+equal args     = evalErr $ "= need two args, got " <> (toS (show args))
 
 bintest :: (Integer -> Integer -> Bool) -> ReduceUnawareCommand
 bintest f ((Num x):(Num y):[]) = return $ Bool (f x y)
 bintest _ args = evalErr $ "bin test need two numbers got " <> (toS (show args))
 
+isReduced :: SExp -> Bool
+isReduced (Atom _) = False
+isReduced (Lambda _) = False
+isReduced _ = True
+
+deepReduce :: (Monad m) => (SExp -> m SExp) -> SExp -> m SExp
+deepReduce f x =
+  if isReduced x
+  then pure x
+  else do
+    reducedOnce <- f x
+    deepReduce f reducedOnce
+
 toStrictCmd :: ReduceUnawareCommand -> Command
 toStrictCmd f reducer sexps = do
-  reduced <- mapM reducer sexps
-  -- DEBUG -- liftIO $ putText "Reduced:"
-  -- DEBUG -- liftIO $ print reduced
-  -- DEBUG -- liftIO $ putText "----"
+  reduced <- mapM (deepReduce reducer) sexps
+  liftIO $ putText "Reduced:"
+  liftIO $ print reduced
+  liftIO $ putText "----"
   f reduced
 
 -- | fn to declare a lish function
@@ -140,7 +154,7 @@ fn reducer (p:bodies) = do
         else return Void
     _ -> return Void
   where fromAtom (Fix (Atom a)) = Just a
-        fromAtom _ = Nothing
+        fromAtom _              = Nothing
 fn _ _ = return Void
 
 strictCommands :: [(Text,ReduceUnawareCommand)]
@@ -189,22 +203,22 @@ lishIf :: Command
 lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
   reducedSexp <- reduceLambda sexp
   case reducedSexp of
-    Bool True -> reduceLambda sexp1
+    Bool True  -> reduceLambda sexp1
     Bool False -> reduceLambda sexp2
-    _ -> evalErr "first argument to if must be a Bool"
+    _          -> evalErr "first argument to if must be a Bool"
 lishIf _ _ = evalErr "if need a bool, a then body and an else one"
 
-unstrictCommands :: [(Text,Command)]
-unstrictCommands = [ ("if",lishIf)
-                   , ("def",def)
-                   , ("fn",fn)
-                   , ("do",doCommand)
+unstrictCommands :: [(Text,InternalCommand)]
+unstrictCommands = [ ("if", InternalCommand "if" lishIf)
+                   , ("def", InternalCommand "def" def)
+                   , ("fn", InternalCommand "fn" fn)
+                   , ("do", InternalCommand "do" doCommand)
                    ]
 
-internalCommands :: Map.Map Text Command
-internalCommands = (strictCommands & map (\(x,y) -> (x,toStrictCmd y)))
+internalCommands :: Map.Map Text InternalCommand
+internalCommands = (strictCommands & map (\(x,y) -> (x,InternalCommand x (toStrictCmd y))))
                    <> unstrictCommands
   & Map.fromList
 
-lookup :: Text -> Maybe Command
+lookup :: Text -> Maybe InternalCommand
 lookup = flip Map.lookup internalCommands

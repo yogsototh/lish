@@ -80,29 +80,20 @@ reduceLambda (Lambda (Fix expr:fexprs)) = do
       -- DEBUG --  putText "Reduced Head:"
       -- DEBUG --  print reduced
       case reduced of
-        Atom f -> do
-          resultInternal <- tryInternalCommand f exprs
-          case resultInternal of
-            Just x -> return x
-            Nothing -> do
-              resultEnv <- tryEnvCommand f exprs
-              case resultEnv of
-                Just x  -> return x
-                Nothing -> do
-                  reducedArgs <- mapM reduceLambda exprs
-                  executeCommand (Command (Fix (Str f))
-                                          (map Fix reducedArgs))
+        Internal command -> (_commandFn command) reduceLambda exprs
         f@(Fn _ _ _ _) -> applyFn f exprs
         s  -> do
           reducedArgs <- mapM reduceLambda exprs
-          executeCommand $ Command (Fix s) (map Fix reducedArgs)
+          executeCommand (Cmd (Fix s) (map Fix reducedArgs))
     else reduceLambda (Lambda . map Fix $ (reduced:exprs))
-reduceLambda command@(Command _ _) = executeCommand command
+reduceLambda command@(Internal  _) = executeCommand command
 reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
     Just s -> return s
-    _      -> return $ Str x
+    _      -> case InternalCommands.lookup x of
+      Just cmd -> return (Internal cmd)
+      _         -> return (Str x)
 reduceLambda x          = return x
 
 applyFn :: SExp -> ReduceUnawareCommand
@@ -119,20 +110,6 @@ applyFn (Fn par bod clos _) args =
     bindVars oldenv newvars = Map.union oldenv (Map.fromList newvars)
 applyFn x _ = return x
 
-tryEnvCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
-tryEnvCommand f args = do
-  envcmd <- get
-  case Map.lookup f envcmd of
-    Just fn@(Fn _ _ _ _) -> Just <$> (applyFn fn args)
-    _                    -> return Nothing
-
-
-tryInternalCommand :: Text -> [SExp] -> StateT Env IO (Maybe SExp)
-tryInternalCommand f args =
-  case InternalCommands.lookup f of
-    Just (fn) -> Just <$> fn reduceLambda args
-    _         -> return Nothing
-
 -- | take a SExp
 toStdIn :: SExp -> Maybe Handle
 toStdIn (WaitingStream h) = h
@@ -145,7 +122,7 @@ shellErr errmsg = do
 
 -- | Execute a shell command
 executeCommand :: SExp -> StateT Env IO SExp
-executeCommand (Command (Fix (Str cmdName)) args) = do
+executeCommand (Cmd (Fix (Str cmdName)) args) = do
   res <- (mapM toArg (map unFix args)) >>= return . catMaybes
   let argsHandle = (filter isJust (map toStdIn (map unFix args)))
       stdinhandle = case argsHandle of
