@@ -1,0 +1,4 @@
+def foo (fn [x] (* x x))
+foo 3
+foo (foo 3)
+= 81 (foo (foo 3))
