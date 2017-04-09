@@ -129,12 +129,8 @@ deepReduce f x =
     deepReduce f reducedOnce
 
 toStrictCmd :: ReduceUnawareCommand -> Command
-toStrictCmd f reducer sexps = do
-  reduced <- mapM (deepReduce reducer) sexps
-  liftIO $ putText "Reduced:"
-  liftIO $ print reduced
-  liftIO $ putText "----"
-  f reduced
+toStrictCmd f reducer sexps =
+  f =<< mapM (deepReduce reducer) sexps
 
 -- | fn to declare a lish function
 -- (fn [arg1 arg2] body1 body2)

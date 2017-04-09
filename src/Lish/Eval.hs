@@ -65,20 +65,12 @@ isReduced _ = True
 -- | The main evaluation function
 -- its real type should be something isomorphic to
 -- (SExp,Environment) -> IO (SExp, Environment)
-reduceLambda :: SExp -> StateT Env IO SExp
-reduceLambda (Lambda (Fix expr:fexprs)) = do
+_reduceLambda :: SExp -> StateT Env IO SExp
+_reduceLambda (Lambda (Fix expr:fexprs)) = do
   let exprs = map unFix fexprs
   reduced <- reduceLambda expr
   if isReduced reduced
     then do
-      -- DEBUG --env <- get
-      -- DEBUG --liftIO $ do
-      -- DEBUG --  putText "Lambda:"
-      -- DEBUG --  print $ (expr:exprs)
-      -- DEBUG --  putText "Env:"
-      -- DEBUG --  print env
-      -- DEBUG --  putText "Reduced Head:"
-      -- DEBUG --  print reduced
       case reduced of
         Internal command -> (_commandFn command) reduceLambda exprs
         f@(Fn _ _ _ _) -> applyFn f exprs
@@ -86,15 +78,27 @@ reduceLambda (Lambda (Fix expr:fexprs)) = do
           reducedArgs <- mapM reduceLambda exprs
           executeCommand (Cmd (Fix s) (map Fix reducedArgs))
     else reduceLambda (Lambda . map Fix $ (reduced:exprs))
-reduceLambda command@(Internal  _) = executeCommand command
-reduceLambda (Atom x) = do
+_reduceLambda command@(Internal  _) = executeCommand command
+_reduceLambda (Atom x) = do
   env <- get
   case Map.lookup x env of
     Just s -> return s
     _      -> case InternalCommands.lookup x of
       Just cmd -> return (Internal cmd)
       _         -> return (Str x)
-reduceLambda x          = return x
+_reduceLambda x          = return x
+
+reduceLambda :: SExp -> StateT Env IO SExp
+reduceLambda x = do
+  -- DEBUG --env <- get
+  -- DEBUG --liftIO $ do
+  -- DEBUG --    putText "------"
+  -- DEBUG --    putStr ("Env: " :: Text)
+  -- DEBUG --    print env
+  -- DEBUG --    putStr ("Arg: " :: Text)
+  -- DEBUG --    putStrLn $ pprint (Fix x)
+  _reduceLambda x
+
 
 applyFn :: SExp -> ReduceUnawareCommand
 applyFn (Fn par bod clos _) args =
@@ -105,7 +109,7 @@ applyFn (Fn par bod clos _) args =
       currentEnv <- get
       -- Run the function in its own closure
       fmap fst $ liftIO $
-        runStateT (reduceLambda (unFix bod)) (Map.union currentEnv localClosure)
+        runStateT (reduceLambda (unFix bod)) (Map.union localClosure currentEnv)
   where
     bindVars oldenv newvars = Map.union oldenv (Map.fromList newvars)
 applyFn x _ = return x

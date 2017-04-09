@@ -63,7 +63,7 @@ type Context = Map Text LishType
 
 repr :: ExprF Text -> Text
 repr (Atom s)          = s
-repr (Internal _)    = "<int-cmd>"
+repr (Internal (InternalCommand n _))    = n
 repr (Num n)           = toS $ show n
 repr (Bool b)          = if b then "true" else "false"
 repr (Str s)           = "\"" <> toS s <> "\""
