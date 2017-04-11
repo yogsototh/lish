@@ -13,6 +13,8 @@ import           Data.Fix
 import qualified Data.Map.Strict       as Map
 import           Protolude
 import           System.Process        hiding (env)
+import Text.PrettyPrint (render)
+import qualified Text.Show.Pretty as Pr
 
 import           Lish.InternalCommands (toArg)
 import qualified Lish.InternalCommands as InternalCommands
@@ -90,13 +92,15 @@ _reduceLambda x          = return x
 
 reduceLambda :: SExp -> StateT Env IO SExp
 reduceLambda x = do
-  -- DEBUG --env <- get
-  -- DEBUG --liftIO $ do
-  -- DEBUG --    putText "------"
-  -- DEBUG --    putStr ("Env: " :: Text)
-  -- DEBUG --    print env
-  -- DEBUG --    putStr ("Arg: " :: Text)
-  -- DEBUG --    putStrLn $ pprint (Fix x)
+  env <- get
+  case (Map.lookup "LISH_DEBUG" env) of
+    Just _ -> liftIO $ do
+      putText "------"
+      putStr ("Env: " :: Text)
+      putStrLn $ Pr.ppShow env
+      putStr ("Arg: " :: Text)
+      putStrLn $ pprint (Fix x)
+    _ -> return ()
   _reduceLambda x
 
 
@@ -105,7 +109,8 @@ applyFn (Fn par bod clos _) args =
   if length par /= length args
     then shellErr "wrong number of arguments"
     else do
-      let localClosure = bindVars clos (zip par args)
+      reducedArgs <- mapM reduceLambda args
+      let localClosure = bindVars clos (zip par reducedArgs)
       currentEnv <- get
       -- Run the function in its own closure
       fmap fst $ liftIO $

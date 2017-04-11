@@ -20,6 +20,8 @@ dependencies:
   - parsec >= 3 && < 4
   - pipes
   - protolude
+  - pretty
+  - pretty-show
   - process
   - text
 

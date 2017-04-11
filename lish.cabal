@@ -35,6 +35,8 @@ library
     , parsec >= 3 && < 4
     , pipes
     , protolude
+    , pretty
+    , pretty-show
     , process
     , text
   exposed-modules:
@@ -61,6 +63,8 @@ executable lish
     , parsec >= 3 && < 4
     , pipes
     , protolude
+    , pretty
+    , pretty-show
     , process
     , text
     , lish
@@ -80,6 +84,8 @@ test-suite lish-benchmark
     , parsec >= 3 && < 4
     , pipes
     , protolude
+    , pretty
+    , pretty-show
     , process
     , text
     , lish
@@ -101,6 +107,8 @@ test-suite lish-doctest
     , parsec >= 3 && < 4
     , pipes
     , protolude
+    , pretty
+    , pretty-show
     , process
     , text
     , lish
@@ -124,6 +132,8 @@ test-suite lish-test
     , parsec >= 3 && < 4
     , pipes
     , protolude
+    , pretty
+    , pretty-show
     , process
     , text
     , lish
