@@ -153,6 +153,17 @@ fn reducer (p:bodies) = do
         fromAtom _              = Nothing
 fn _ _ = return Void
 
+emptyCmd :: Command
+emptyCmd _ ((List []):[]) = return (Bool True)
+emptyCmd _ ((List _):[]) = return (Bool False)
+emptyCmd r (x@(Atom _):[]) = do
+  val <- r x
+  emptyCmd r (val:[])
+emptyCmd r (x@(Lambda _):[]) = do
+  val <- r x
+  emptyCmd r (val:[])
+emptyCmd _ _ = return Void
+
 strictCommands :: [(Text,ReduceUnawareCommand)]
 strictCommands = [ ("prn", prn)
                  , ("pr", pr)
@@ -209,6 +220,8 @@ unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("def", InternalCommand "def" def)
                    , ("fn", InternalCommand "fn" fn)
                    , ("do", InternalCommand "do" doCommand)
+                   -- list ops
+                   , ("empty?",InternalCommand "empty?" emptyCmd)
                    ]
 
 internalCommands :: Map.Map Text InternalCommand
