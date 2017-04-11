@@ -164,6 +164,38 @@ emptyCmd r (x@(Lambda _):[]) = do
   emptyCmd r (val:[])
 emptyCmd _ _ = return Void
 
+firstCmd :: Command
+firstCmd _ ((List (x:_)):[]) = return (unFix x)
+firstCmd _ ((List _):[]) = return Void
+firstCmd r (x@(Atom _):[]) = do
+  val <- r x
+  firstCmd r (val:[])
+firstCmd r (x@(Lambda _):[]) = do
+  val <- r x
+  firstCmd r (val:[])
+firstCmd _ _ = return Void
+
+restCmd :: Command
+restCmd _ ((List (_:xs)):[]) = return (List xs)
+restCmd _ ((List _):[]) = return Void
+restCmd r (x@(Atom _):[]) = do
+  val <- r x
+  restCmd r (val:[])
+restCmd r (x@(Lambda _):[]) = do
+  val <- r x
+  restCmd r (val:[])
+restCmd _ _ = return Void
+
+consCmd :: Command
+consCmd _ (x:(List ls):[]) = return (List (Fix x:ls))
+consCmd r (x:y@(Atom _):[]) = do
+  val <- r y
+  consCmd r (x:val:[])
+consCmd r (x:y@(Lambda _):[]) = do
+  val <- r y
+  consCmd r (x:val:[])
+consCmd _ _ = return Void
+
 strictCommands :: [(Text,ReduceUnawareCommand)]
 strictCommands = [ ("prn", prn)
                  , ("pr", pr)
@@ -222,6 +254,9 @@ unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("do", InternalCommand "do" doCommand)
                    -- list ops
                    , ("empty?",InternalCommand "empty?" emptyCmd)
+                   , ("first",InternalCommand "first" firstCmd)
+                   , ("rest",InternalCommand "rest" restCmd)
+                   , ("cons",InternalCommand "cons" consCmd)
                    ]
 
 internalCommands :: Map.Map Text InternalCommand
