@@ -25,6 +25,9 @@ toArg (Atom x)          = do
 toArg (Str s)           = return $ Just $ toS s
 toArg (Num i) = return . Just . toS . show $ i
 toArg (Stream (Just h)) = lift $ fmap (Just . Text.strip .toS) (hGetContents h)
+toArg (List xs) = do
+  strs <- traverse toArg (map unFix xs)
+  return (Just ("["<> (Text.intercalate " " (catMaybes strs)) <> "]"))
 toArg _                 = return $ Nothing
 
 -- | Print with return line
@@ -52,14 +55,6 @@ undef ((Atom name):[]) = do
   modify (Map.delete name)
   return Void
 undef x = evalErr $ "undef wait an atom got" <> toS (show x)
-
--- | Export a var as Environment variable
-export :: ReduceUnawareCommand
-export ((Atom name):v@(Str s):[]) = do
-  liftIO $ setEnv (toS name) (toS s)
-  modify (Map.insert name v)
-  return v
-export _ = evalErr $ "eval need an atom and a string (eval foo \"foo\")"
 
 -- | retrieve the value of a var
 getenv :: ReduceUnawareCommand
@@ -107,10 +102,6 @@ toWaitingStream :: ReduceUnawareCommand
 toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
 toWaitingStream _                     = return Void
 
-equal :: ReduceUnawareCommand
-equal (x:y:[]) = return (Bool (x == y))
-equal args     = evalErr $ "= need two args, got " <> (toS (show args))
-
 bintest :: (Integer -> Integer -> Bool) -> ReduceUnawareCommand
 bintest f ((Num x):(Num y):[]) = return $ Bool (f x y)
 bintest _ args = evalErr $ "bin test need two numbers got " <> (toS (show args))
@@ -153,61 +144,16 @@ fn reducer (p:bodies) = do
         fromAtom _              = Nothing
 fn _ _ = return Void
 
-emptyCmd :: Command
-emptyCmd _ ((List []):[]) = return (Bool True)
-emptyCmd _ ((List _):[]) = return (Bool False)
-emptyCmd r (x@(Atom _):[]) = do
-  val <- r x
-  emptyCmd r (val:[])
-emptyCmd r (x@(Lambda _):[]) = do
-  val <- r x
-  emptyCmd r (val:[])
-emptyCmd _ _ = return Void
-
-firstCmd :: Command
-firstCmd _ ((List (x:_)):[]) = return (unFix x)
-firstCmd _ ((List _):[]) = return Void
-firstCmd r (x@(Atom _):[]) = do
-  val <- r x
-  firstCmd r (val:[])
-firstCmd r (x@(Lambda _):[]) = do
-  val <- r x
-  firstCmd r (val:[])
-firstCmd _ _ = return Void
-
-restCmd :: Command
-restCmd _ ((List (_:xs)):[]) = return (List xs)
-restCmd _ ((List _):[]) = return Void
-restCmd r (x@(Atom _):[]) = do
-  val <- r x
-  restCmd r (val:[])
-restCmd r (x@(Lambda _):[]) = do
-  val <- r x
-  restCmd r (val:[])
-restCmd _ _ = return Void
-
-consCmd :: Command
-consCmd _ (x:(List ls):[]) = return (List (Fix x:ls))
-consCmd r (x:y@(Atom _):[]) = do
-  val <- r y
-  consCmd r (x:val:[])
-consCmd r (x:y@(Lambda _):[]) = do
-  val <- r y
-  consCmd r (x:val:[])
-consCmd _ _ = return Void
-
 strictCommands :: [(Text,ReduceUnawareCommand)]
 strictCommands = [ ("prn", prn)
                  , ("pr", pr)
                  , (">", toWaitingStream)
                  , ("replace", replace)
                  , ("undef",undef)
-                 , ("export",export)
                  , ("getenv",getenv)
                  , ("$",getenv)
                  , ("str",str)
                  , ("atom",atom)
-                 , ("=",equal)
                  -- binary operators
                  , ("+",binop (+))
                  , ("-",binop (-))
@@ -247,11 +193,80 @@ lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
     _          -> evalErr "first argument to if must be a Bool"
 lishIf _ _ = evalErr "if need a bool, a then body and an else one"
 
+emptyCmd :: Command
+emptyCmd _ ((List []):[]) = return (Bool True)
+emptyCmd _ ((List _):[]) = return (Bool False)
+emptyCmd r (x@(Atom _):[]) = do
+  val <- r x
+  emptyCmd r (val:[])
+emptyCmd r (x@(Lambda _):[]) = do
+  val <- r x
+  emptyCmd r (val:[])
+emptyCmd _ _ = return Void
+
+firstCmd :: Command
+firstCmd reducer ((List (x:_)):[]) = reducer (unFix x)
+firstCmd _ ((List _):[]) = return Void
+firstCmd r (x@(Atom _):[]) = do
+  val <- r x
+  firstCmd r (val:[])
+firstCmd r (x@(Lambda _):[]) = do
+  val <- r x
+  firstCmd r (val:[])
+firstCmd _ _ = return Void
+
+restCmd :: Command
+restCmd _ ((List (_:xs)):[]) = return (List xs)
+restCmd _ ((List _):[]) = return Void
+restCmd r (x@(Atom _):[]) = do
+  val <- r x
+  restCmd r (val:[])
+restCmd r (x@(Lambda _):[]) = do
+  val <- r x
+  restCmd r (val:[])
+restCmd _ _ = return Void
+
+consCmd :: Command
+consCmd r (x:(List ls):[]) = do
+  xreduced <- r x
+  return (List (Fix xreduced:ls))
+consCmd r (x:y@(Atom _):[]) = do
+  val <- r y
+  consCmd r (x:val:[])
+consCmd r (x:y@(Lambda _):[]) = do
+  val <- r y
+  consCmd r (x:val:[])
+consCmd _ _ = return Void
+
+equal :: Command
+equal r ((List xs):(List ys):[]) = do
+  reducedListX <- traverse r (map unFix xs)
+  reducedListY <- traverse r (map unFix ys)
+  return (Bool (reducedListX == reducedListY))
+equal r (x:y:[]) = do
+  reducedX <- r x
+  reducedY <- r y
+  return (Bool (reducedX == reducedY))
+equal _ args     = evalErr $ "= need two args, got " <> (toS (show args))
+
+-- | Export a var as Environment variable
+export :: Command
+export _ ((Atom name):v@(Str s):[]) = do
+  liftIO $ setEnv (toS name) (toS s)
+  modify (Map.insert name v)
+  return v
+export r (n:value:[]) = do
+  reducedVal <- r value
+  export r (n:reducedVal:[])
+export _ _ = evalErr $ "eval need an atom and a string (eval foo \"foo\")"
+
 unstrictCommands :: [(Text,InternalCommand)]
 unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("def", InternalCommand "def" def)
                    , ("fn", InternalCommand "fn" fn)
                    , ("do", InternalCommand "do" doCommand)
+                   , ("=", InternalCommand "=" equal)
+                   , ("export", InternalCommand "export" export)
                    -- list ops
                    , ("empty?",InternalCommand "empty?" emptyCmd)
                    , ("first",InternalCommand "first" firstCmd)

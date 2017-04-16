@@ -13,7 +13,6 @@ import           Data.Fix
 import qualified Data.Map.Strict       as Map
 import           Protolude
 import           System.Process        hiding (env)
-import Text.PrettyPrint (render)
 import qualified Text.Show.Pretty as Pr
 
 import           Lish.InternalCommands (toArg)
@@ -94,7 +93,7 @@ reduceLambda :: SExp -> StateT Env IO SExp
 reduceLambda x = do
   env <- get
   case (Map.lookup "LISH_DEBUG" env) of
-    Just _ -> liftIO $ do
+    Just (Str "true") -> liftIO $ do
       putText "------"
       putStr ("Env: " :: Text)
       putStrLn $ Pr.ppShow env
