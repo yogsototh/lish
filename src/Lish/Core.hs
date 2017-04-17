@@ -52,10 +52,11 @@ mainLoop mc env previousPartialnput = do
                  , Just "exit"
                  , Just "logout"] -> outputStrLn "bye bye!"
 
-    Just line -> do
-      let exprs = previousPartialnput
-                  <> (if isJust mc then " " else "")
-                  <> toS line
+    Just rawLine -> do
+      let line = takeWhile (/= ';') rawLine -- remove comments
+          exprs = previousPartialnput
+                    <> (if isJust mc then " " else "")
+                    <> toS line
       case checkBalanced exprs empty of
         Unbalanced c -> mainLoop (Just c) env exprs
         Balanced -> do

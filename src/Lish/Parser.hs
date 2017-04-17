@@ -6,6 +6,7 @@ module Lish.Parser
   where
 
 import           Data.Fix
+import qualified Data.Text        as Text
 import           Protolude        hiding (for, many, optional, try, (<|>))
 import           Text.Parsec
 import           Text.Parsec.Text
@@ -13,7 +14,14 @@ import           Text.Parsec.Text
 import           Lish.Types
 
 parseCmd :: Text -> Either ParseError Expr
-parseCmd = parse parseExpr "S-Expr"
+parseCmd = parse parseExpr "S-Expr" . eatComment
+
+eatComment :: Text -> Text
+eatComment t =
+  t
+  & Text.lines
+  & map (Text.takeWhile (/= ';'))
+  & Text.unlines
 
 parseExpr :: Parser Expr
 parseExpr = parseLambda

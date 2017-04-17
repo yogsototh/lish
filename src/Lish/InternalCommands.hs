@@ -14,6 +14,7 @@ import           GHC.IO.Handle      (hGetContents)
 import           Protolude          hiding (show)
 import           System.Environment (setEnv)
 
+import           Lish.Parser        (parseCmd)
 import           Lish.Types
 
 toArg :: SExp -> StateT Env IO (Maybe Text)
@@ -107,9 +108,9 @@ bintest f ((Num x):(Num y):[]) = return $ Bool (f x y)
 bintest _ args = evalErr $ "bin test need two numbers got " <> (toS (show args))
 
 isReduced :: SExp -> Bool
-isReduced (Atom _) = False
+isReduced (Atom _)   = False
 isReduced (Lambda _) = False
-isReduced _ = True
+isReduced _          = True
 
 deepReduce :: (Monad m) => (SExp -> m SExp) -> SExp -> m SExp
 deepReduce f x =
@@ -260,6 +261,21 @@ export r (n:value:[]) = do
   export r (n:reducedVal:[])
 export _ _ = evalErr $ "eval need an atom and a string (eval foo \"foo\")"
 
+-- ## TODO
+-- eval :: Command
+-- eval r ((Str program):[]) = do
+--   let parsed = parseCmd program
+--   case parsed of
+--     Right expr -> r (unFix expr)
+--     _          -> evalErr "eval error"
+-- eval r (x@(Atom _):[]) = do
+--   reduced <- r x
+--   eval r (reduced:[])
+-- eval r (x@(Lambda _):[]) = do
+--   reduced <- r x
+--   eval r (reduced:[])
+-- eval _ _ = evalErr "eval error"
+
 unstrictCommands :: [(Text,InternalCommand)]
 unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("def", InternalCommand "def" def)
@@ -267,6 +283,7 @@ unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("do", InternalCommand "do" doCommand)
                    , ("=", InternalCommand "=" equal)
                    , ("export", InternalCommand "export" export)
+                   -- , ("eval", InternalCommand "eval" eval)
                    -- list ops
                    , ("empty?",InternalCommand "empty?" emptyCmd)
                    , ("first",InternalCommand "first" firstCmd)

@@ -1,5 +1,12 @@
 def inc (fn [x] (+ x 1))
-def map (fn [f lst] (if (empty? lst) [] (cons (f (first lst)) (map f (rest lst)))))
-def test (fn [name expr] (if expr (prn (str name " OK")) (prn (str name " FAILED"))))
+def map (fn [f lst]
+            (if (empty? lst)
+                []
+                (cons (f (first lst))
+                      (map f (rest lst)))))
+def test (fn [name expr]
+             (if expr
+                 (prn (str name " OK"))
+                 (prn (str name " FAILED"))))
 test "map" (= [2 3 4] (map inc [1 2 3]))
 test "double map" (= [3 4 5] (map inc (map inc [1 2 3])))
