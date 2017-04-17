@@ -1,0 +1,11 @@
+;; This is lish core
+
+;; increment
+def inc (fn [x] (+ x 1))
+
+;; map
+def map (fn [f lst]
+          (if (empty? lst)
+            []
+            (cons (f (first lst))
+                  (map f (rest lst)))))

@@ -14,14 +14,14 @@ import           Text.Parsec.Text
 import           Lish.Types
 
 parseCmd :: Text -> Either ParseError Expr
-parseCmd = parse parseExpr "S-Expr" . eatComment
+parseCmd = parse parseExpr "S-Expr" . Text.strip . eatComment
 
 eatComment :: Text -> Text
 eatComment t =
   t
   & Text.lines
   & map (Text.takeWhile (/= ';'))
-  & Text.unlines
+  & Text.intercalate "\n"
 
 parseExpr :: Parser Expr
 parseExpr = parseLambda

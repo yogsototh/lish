@@ -261,20 +261,19 @@ export r (n:value:[]) = do
   export r (n:reducedVal:[])
 export _ _ = evalErr $ "eval need an atom and a string (eval foo \"foo\")"
 
--- ## TODO
--- eval :: Command
--- eval r ((Str program):[]) = do
---   let parsed = parseCmd program
---   case parsed of
---     Right expr -> r (unFix expr)
---     _          -> evalErr "eval error"
--- eval r (x@(Atom _):[]) = do
---   reduced <- r x
---   eval r (reduced:[])
--- eval r (x@(Lambda _):[]) = do
---   reduced <- r x
---   eval r (reduced:[])
--- eval _ _ = evalErr "eval error"
+evalStr :: Command
+evalStr r ((Str program):[]) = do
+  let parsed = parseCmd program
+  case parsed of
+    Right expr -> r (unFix expr)
+    _          -> evalErr "evalStr error"
+evalStr r (x@(Atom _):[]) = do
+  reduced <- r x
+  evalStr r (reduced:[])
+evalStr r (x@(Lambda _):[]) = do
+  reduced <- r x
+  evalStr r (reduced:[])
+evalStr _ _ = evalErr "evalStr error"
 
 unstrictCommands :: [(Text,InternalCommand)]
 unstrictCommands = [ ("if", InternalCommand "if" lishIf)
