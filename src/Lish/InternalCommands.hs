@@ -182,8 +182,11 @@ def _ exprs =
             <> "instead got: " <> toS (show exprs)
 
 doCommand :: Command
-doCommand reduceLambda exprs = do
-  foldl' (\_ x -> reduceLambda x) (return Void) exprs
+doCommand reduceLambda (expr:nexpr:exprs) = do
+  _ <- reduceLambda expr
+  doCommand reduceLambda (nexpr:exprs)
+doCommand reduceLambda (expr:[]) = reduceLambda expr
+doCommand _ _ = return Void
 
 lishIf :: Command
 lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
@@ -282,7 +285,7 @@ unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("do", InternalCommand "do" doCommand)
                    , ("=", InternalCommand "=" equal)
                    , ("export", InternalCommand "export" export)
-                   -- , ("eval", InternalCommand "eval" eval)
+                   , ("eval", InternalCommand "eval" evalStr)
                    -- list ops
                    , ("empty?",InternalCommand "empty?" emptyCmd)
                    , ("first",InternalCommand "first" firstCmd)
