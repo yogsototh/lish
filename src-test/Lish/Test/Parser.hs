@@ -20,7 +20,7 @@ parseTests =
   , testCase "simple commands" (simpleCommand "atom")
   , testCase "simple commands" (simpleCommand "_foo")
   , testCase "multiline command"
-             (parseCmd "fn [x] ; comment \n   (+ x 1)" @?= Right incExpr)
+             (parseCmd "(fn [x] ; comment \n   (+ x 1))" @?= Right incExpr)
   , testProperty "simple" propAtom
   ]
 
