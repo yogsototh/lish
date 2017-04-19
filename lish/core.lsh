@@ -1,5 +1,6 @@
-(do
 ;; This is lish core
+
+(def require (fn [x] (eval (str "(do " (cat x) ")"))))
 
 ;; increment
 (def inc (fn [x] (+ x 1)))
@@ -10,4 +11,3 @@
             []
             (cons (f (first lst))
                   (map f (rest lst))))))
-)
