@@ -282,6 +282,16 @@ getenv r (expr:_) = do
     _ -> evalErr "getenv need on atom or a string as argument"
 getenv _ _ = evalErr "getenv need on atom or a string as argument"
 
+comment :: Command
+comment _ _ = return Void
+
+quote :: Command
+quote _ exprs = return (List (map Fix exprs))
+
+evalList :: Command
+evalList r (List exprs:[]) = r (Lambda exprs)
+evalList _ _ = return Void
+
 unstrictCommands :: [(Text,InternalCommand)]
 unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("def", InternalCommand "def" def)
@@ -289,9 +299,12 @@ unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("do", InternalCommand "do" doCommand)
                    , ("=", InternalCommand "=" equal)
                    , ("export", InternalCommand "export" export)
-                   , ("eval", InternalCommand "eval" evalStr)
+                   , ("quote", InternalCommand "quote" quote)
+                   , ("eval-str", InternalCommand "eval-str" evalStr)
+                   , ("eval", InternalCommand "eval" evalList)
                    , ("getenv", InternalCommand "getenv" getenv)
                    , ("$", InternalCommand "$" getenv)
+                   , ("comment", InternalCommand "comment" comment)
                    -- list ops
                    , ("empty?",InternalCommand "empty?" emptyCmd)
                    , ("first",InternalCommand "first" firstCmd)
