@@ -1,11 +1,14 @@
-;; This is lish core
+(comment This is lish core)
 
 (def require (fn [x] (eval (str "(do " (cat x) ")"))))
 
-;; increment
 (def inc (fn [x] (+ x 1)))
 
-;; map
+(def range (fn [from to]
+     (if (< from to)
+         (cons from (range (inc from) to))
+         [])))
+
 (def map (fn [f lst]
           (if (empty? lst)
             []
