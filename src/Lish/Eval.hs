@@ -11,9 +11,11 @@ module Lish.Eval
 import qualified Control.Exception     as Exception
 import           Data.Fix
 import qualified Data.Map.Strict       as Map
+import           Prelude               (String)
 import           Protolude
 import           System.Process        hiding (env)
-import qualified Text.Show.Pretty as Pr
+import qualified System.Process        as Process
+import qualified Text.Show.Pretty      as Pr
 
 import           Lish.InternalCommands (toArg)
 import qualified Lish.InternalCommands as InternalCommands
@@ -59,9 +61,9 @@ checkType ctx expr ty = infer ctx expr >>= \ inferedType ->
                          <> " but got type " <> show inferedType))
 
 isReduced :: SExp -> Bool
-isReduced (Atom _) = False
+isReduced (Atom _)   = False
 isReduced (Lambda _) = False
-isReduced _ = True
+isReduced _          = True
 
 -- | The main evaluation function
 -- its real type should be something isomorphic to
@@ -86,7 +88,7 @@ _reduceLambda (Atom x) = do
     Just s -> return s
     _      -> case InternalCommands.lookup x of
       Just cmd -> return (Internal cmd)
-      _         -> return (Str x)
+      _        -> return (Str x)
 _reduceLambda x          = return x
 
 reduceLambda :: SExp -> StateT Env IO SExp
@@ -131,17 +133,21 @@ shellErr errmsg = do
 -- | Execute a shell command
 executeCommand :: SExp -> StateT Env IO SExp
 executeCommand (Cmd (Fix (Str cmdName)) args) = do
+  lispEnv <- get
   res <- (mapM toArg (map unFix args)) >>= return . catMaybes
   let argsHandle = (filter isJust (map toStdIn (map unFix args)))
       stdinhandle = case argsHandle of
                       (Just h:_) -> UseHandle h
                       _          -> Inherit
+      localCmdEnv = mkLocalCmdEnv lispEnv
   case (map toS res) of
     sargs -> do
       result <- lift . trySh $
         createProcess (proc (toS cmdName) sargs)
                       { std_in = stdinhandle
-                      , std_out = CreatePipe }
+                      , std_out = CreatePipe
+                      , Process.env = localCmdEnv
+                      }
       case result of
         Right (_, mb_hout, _, _) -> return $ Stream mb_hout
         Left ex                  -> shellErr ("Unknow fn or cmd: "
@@ -150,4 +156,9 @@ executeCommand (Cmd (Fix (Str cmdName)) args) = do
   where
     trySh :: IO a -> IO (Either IOException a)
     trySh = Exception.try
+    mkLocalCmdEnv :: Map.Map Text SExp -> Maybe [(String,String)]
+    mkLocalCmdEnv m = traverse pairToProcessPair (Map.toList m)
+    pairToProcessPair :: (Text,SExp) -> Maybe (String,String)
+    pairToProcessPair (x,Str y) = Just (toS x,toS y)
+    pairToProcessPair (_,_)     = Nothing
 executeCommand _ = shellErr "[shell] not a lambda!"
