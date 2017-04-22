@@ -25,8 +25,13 @@ import           Lish.Types
 runLish :: IO ()
 runLish = do
   env <- toEnv <$> getEnvironment
+  -- load core
   runInputT (defaultSettings { historyFile = Just ".lish-history" })
-    (mainLoop Nothing env "")
+    (do
+        -- load lish core
+        fileContent <- liftIO $ readFile "lish/core.lsh"
+        newEnv <- eval env (fmap unFix (parseCmd ("(do " <> fileContent <> ")")))
+        mainLoop Nothing newEnv "")
 
 -- | System Environment -> LISH Env
 toEnv :: [(String,String)] -> Env
@@ -52,9 +57,8 @@ mainLoop mc env previousPartialnput = do
                  , Just "exit"
                  , Just "logout"] -> outputStrLn "bye bye!"
 
-    Just rawLine -> do
-      let line = takeWhile (/= ';') rawLine -- remove comments
-          exprs = previousPartialnput
+    Just line -> do
+      let exprs = previousPartialnput
                     <> (if isJust mc then " " else "")
                     <> toS line
       case checkBalanced exprs empty of

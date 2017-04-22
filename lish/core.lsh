@@ -11,3 +11,5 @@
             []
             (cons (f (first lst))
                   (map f (rest lst))))))
+
+(prn "LISH core loaded")

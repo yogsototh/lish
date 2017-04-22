@@ -57,16 +57,6 @@ undef ((Atom name):[]) = do
   return Void
 undef x = evalErr $ "undef wait an atom got" <> toS (show x)
 
--- | retrieve the value of a var
-getenv :: ReduceUnawareCommand
-getenv ((Atom varname):[]) = do
-  hm <- get
-  return $ fromMaybe Void (Map.lookup varname hm)
-getenv ((Str varname):[]) = do
-  hm <- get
-  return $ fromMaybe Void (Map.lookup varname hm)
-getenv _ = evalErr "getenv need on atom or a string as argument"
-
 -- | replace à la `sed s/old/new/g text`
 replace :: ReduceUnawareCommand
 replace ((Str old) : (Str new) : (Str text) : []) =
@@ -151,8 +141,6 @@ strictCommands = [ ("prn", prn)
                  , (">", toWaitingStream)
                  , ("replace", replace)
                  , ("undef",undef)
-                 , ("getenv",getenv)
-                 , ("$",getenv)
                  , ("str",str)
                  , ("atom",atom)
                  -- binary operators
@@ -278,6 +266,22 @@ evalStr r (x@(Lambda _):[]) = do
   evalStr r (reduced:[])
 evalStr _ _ = evalErr "evalStr error"
 
+-- | retrieve the value of a var
+getenv :: Command
+getenv _ ((Atom varname):[]) = do
+  hm <- get
+  return $ fromMaybe Void (Map.lookup varname hm)
+getenv _ ((Str varname):[]) = do
+  hm <- get
+  return $ fromMaybe Void (Map.lookup varname hm)
+getenv r (expr:_) = do
+  reduced <- r expr
+  hm <- get
+  case reduced of
+    (Str varname) -> return $ fromMaybe Void (Map.lookup varname hm)
+    _ -> evalErr "getenv need on atom or a string as argument"
+getenv _ _ = evalErr "getenv need on atom or a string as argument"
+
 unstrictCommands :: [(Text,InternalCommand)]
 unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("def", InternalCommand "def" def)
@@ -286,6 +290,8 @@ unstrictCommands = [ ("if", InternalCommand "if" lishIf)
                    , ("=", InternalCommand "=" equal)
                    , ("export", InternalCommand "export" export)
                    , ("eval", InternalCommand "eval" evalStr)
+                   , ("getenv", InternalCommand "getenv" getenv)
+                   , ("$", InternalCommand "$" getenv)
                    -- list ops
                    , ("empty?",InternalCommand "empty?" emptyCmd)
                    , ("first",InternalCommand "first" firstCmd)
