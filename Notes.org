@@ -1,0 +1,7 @@
+* Notes
+
+** hlint
+
+#+BEGIN_SRC
+hlint . --report
+#+END_SRC

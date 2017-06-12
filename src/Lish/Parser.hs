@@ -27,7 +27,7 @@ parseNumber = (Fix . Num . fromMaybe 0 . readMaybe) <$> many1 digit
 
 parseAtom :: Parser Expr
 parseAtom = do
-  frst <- (noneOf " \t()[]\"")
+  frst <- noneOf " \t()[]\""
   rest <- many (noneOf " \t()[]")
   case frst:rest of
     "true"  -> return . Fix $ Bool True

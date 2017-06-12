@@ -28,14 +28,14 @@ toArg (Num i) = return . Just . toS . show $ i
 toArg (Stream (Just h)) = lift $ fmap (Just . Text.strip .toS) (hGetContents h)
 toArg (List xs) = do
   strs <- traverse toArg (map unFix xs)
-  return (Just ("["<> (Text.intercalate " " (catMaybes strs)) <> "]"))
-toArg _                 = return $ Nothing
+  return (Just ("["<> Text.intercalate " " (catMaybes strs) <> "]"))
+toArg _                 = return Nothing
 
 -- | Print with return line
 prn :: ReduceUnawareCommand
 prn args = do
   strs <- catMaybes <$> mapM toArg args
-  putStrLn $ (Text.intercalate " " strs)
+  putStrLn (Text.intercalate " " strs)
   return Void
 
 -- | Print
@@ -52,14 +52,14 @@ evalErr errmsg = do
 
 -- | Undefine a var
 undef :: ReduceUnawareCommand
-undef ((Atom name):[]) = do
+undef [Atom name] = do
   modify (Map.delete name)
   return Void
 undef x = evalErr $ "undef wait an atom got" <> toS (show x)
 
 -- | replace à la `sed s/old/new/g text`
 replace :: ReduceUnawareCommand
-replace ((Str old) : (Str new) : (Str text) : []) =
+replace [Str old,Str new,Str text] =
   return $ Str $ Text.replace old new text
 replace _ = evalErr "replace should take 3 String arguments"
 
@@ -71,31 +71,31 @@ str exprs = do
 
 -- | create an atom from a string (do nothing to atoms)
 atom :: ReduceUnawareCommand
-atom ((Atom a):[]) = return $ Atom a
-atom ((Str s):[])  = return $ Atom s
-atom _             = evalErr "atom need an atom or a string"
+atom [Atom a] = return $ Atom a
+atom [Str s]  = return $ Atom s
+atom _        = evalErr "atom need an atom or a string"
 
 -- | Numbers Ops
 binop :: (Integer -> Integer -> Integer) -> ReduceUnawareCommand
-binop f ((Num x):(Num y):[]) = return $ Num (f x y)
+binop f [Num x,Num y] = return $ Num (f x y)
 binop _ exprs = evalErr
   ("binary operator needs two numbers. Got: " <> toS (show exprs))
 
 bbinop :: (Bool -> Bool -> Bool) -> ReduceUnawareCommand
-bbinop f ((Bool x):(Bool y):[]) = return $ Bool (f x y)
+bbinop f [Bool x,Bool y] = return $ Bool (f x y)
 bbinop _ _ = evalErr "boolean binary operator need two booleans arguments"
 
 lnot :: ReduceUnawareCommand
-lnot ((Bool x):[]) = return ( Bool (not x))
-lnot _             = evalErr "not need a boolean"
+lnot [Bool x] = return (Bool (not x))
+lnot _        = evalErr "not need a boolean"
 
 toWaitingStream :: ReduceUnawareCommand
-toWaitingStream (Stream (Just h) :[]) = return (WaitingStream (Just h))
+toWaitingStream [Stream (Just h) ] = return (WaitingStream (Just h))
 toWaitingStream _                     = return Void
 
 bintest :: (Integer -> Integer -> Bool) -> ReduceUnawareCommand
-bintest f ((Num x):(Num y):[]) = return $ Bool (f x y)
-bintest _ args = evalErr $ "bin test need two numbers got " <> (toS (show args))
+bintest f [Num x,Num y] = return $ Bool (f x y)
+bintest _ args = evalErr $ "bin test need two numbers got " <> toS (show args)
 
 isReduced :: SExp -> Bool
 isReduced (Atom _)   = False
@@ -124,11 +124,11 @@ fn reducer (p:bodies) = do
     List args -> do
       let  parameters = map fromAtom args
       if all isJust parameters
-        then return (Fn { params = catMaybes parameters
-                        , body = Fix . Lambda . map Fix $ (Atom "do"):bodies
-                        , closure = mempty
-                        , types = ([],LCommand)
-                        })
+        then return Fn { params = catMaybes parameters
+                       , body = Fix . Lambda . map Fix $ Atom "do":bodies
+                       , closure = mempty
+                       , types = ([],LCommand)
+                       }
         else return Void
     _ -> return Void
   where fromAtom (Fix (Atom a)) = Just a
@@ -162,7 +162,7 @@ strictCommands = [ ("prn", prn)
 
 -- | Define a var
 def :: Command
-def _ ((Atom name):v:[]) = do
+def _ [Atom name,v] = do
   modify (Map.insert name v)
   return v
 def _ exprs =
@@ -173,11 +173,11 @@ doCommand :: Command
 doCommand reduceLambda (expr:nexpr:exprs) = do
   _ <- reduceLambda expr
   doCommand reduceLambda (nexpr:exprs)
-doCommand reduceLambda (expr:[]) = reduceLambda expr
+doCommand reduceLambda [expr] = reduceLambda expr
 doCommand _ _ = return Void
 
 lishIf :: Command
-lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
+lishIf reduceLambda [sexp,sexp1,sexp2] = do
   reducedSexp <- reduceLambda sexp
   case reducedSexp of
     Bool True  -> reduceLambda sexp1
@@ -186,92 +186,92 @@ lishIf reduceLambda (sexp:sexp1:sexp2:[]) = do
 lishIf _ _ = evalErr "if need a bool, a then body and an else one"
 
 emptyCmd :: Command
-emptyCmd _ ((List []):[]) = return (Bool True)
-emptyCmd _ ((List _):[]) = return (Bool False)
-emptyCmd r (x@(Atom _):[]) = do
+emptyCmd _ [List []] = return (Bool True)
+emptyCmd _ [List _] = return (Bool False)
+emptyCmd r [x@(Atom _)] = do
   val <- r x
-  emptyCmd r (val:[])
-emptyCmd r (x@(Lambda _):[]) = do
+  emptyCmd r [val]
+emptyCmd r [x@(Lambda _)] = do
   val <- r x
-  emptyCmd r (val:[])
+  emptyCmd r [val]
 emptyCmd _ _ = return Void
 
 firstCmd :: Command
-firstCmd reducer ((List (x:_)):[]) = reducer (unFix x)
-firstCmd _ ((List _):[]) = return Void
-firstCmd r (x@(Atom _):[]) = do
+firstCmd reducer [List (x:_)] = reducer (unFix x)
+firstCmd _ [List _] = return Void
+firstCmd r [x@(Atom _)] = do
   val <- r x
-  firstCmd r (val:[])
-firstCmd r (x@(Lambda _):[]) = do
+  firstCmd r [val]
+firstCmd r [x@(Lambda _)] = do
   val <- r x
-  firstCmd r (val:[])
+  firstCmd r [val]
 firstCmd _ _ = return Void
 
 restCmd :: Command
-restCmd _ ((List (_:xs)):[]) = return (List xs)
-restCmd _ ((List _):[]) = return Void
-restCmd r (x@(Atom _):[]) = do
+restCmd _ [List (_:xs)] = return (List xs)
+restCmd _ [List _] = return Void
+restCmd r [x@(Atom _)] = do
   val <- r x
-  restCmd r (val:[])
-restCmd r (x@(Lambda _):[]) = do
+  restCmd r [val]
+restCmd r [x@(Lambda _)] = do
   val <- r x
-  restCmd r (val:[])
+  restCmd r [val]
 restCmd _ _ = return Void
 
 consCmd :: Command
-consCmd r (x:(List ls):[]) = do
+consCmd r [x,List ls] = do
   xreduced <- r x
   return (List (Fix xreduced:ls))
-consCmd r (x:y@(Atom _):[]) = do
+consCmd r [x,y@(Atom _)] = do
   val <- r y
-  consCmd r (x:val:[])
-consCmd r (x:y@(Lambda _):[]) = do
+  consCmd r [x,val]
+consCmd r [x,y@(Lambda _)] = do
   val <- r y
-  consCmd r (x:val:[])
+  consCmd r [x,val]
 consCmd _ _ = return Void
 
 equal :: Command
-equal r ((List xs):(List ys):[]) = do
+equal r [List xs,List ys] = do
   reducedListX <- traverse r (map unFix xs)
   reducedListY <- traverse r (map unFix ys)
   return (Bool (reducedListX == reducedListY))
-equal r (x:y:[]) = do
+equal r [x,y] = do
   reducedX <- r x
   reducedY <- r y
   return (Bool (reducedX == reducedY))
-equal _ args     = evalErr $ "= need two args, got " <> (toS (show args))
+equal _ args     = evalErr $ "= need two args, got " <> toS (show args)
 
 -- | Export a var as Environment variable
 export :: Command
-export _ ((Atom name):v@(Str s):[]) = do
+export _ [Atom name,v@(Str s)] = do
   liftIO $ setEnv (toS name) (toS s)
   modify (Map.insert name v)
   return v
-export r (n:value:[]) = do
+export r [n,value] = do
   reducedVal <- r value
-  export r (n:reducedVal:[])
-export _ _ = evalErr $ "eval need an atom and a string (eval foo \"foo\")"
+  export r [n,reducedVal]
+export _ _ = evalErr "eval need an atom and a string (eval foo \"foo\")"
 
 evalStr :: Command
-evalStr r ((Str program):[]) = do
+evalStr r [Str program] = do
   let parsed = parseCmd program
   case parsed of
     Right expr -> r (unFix expr)
     _          -> evalErr "evalStr error"
-evalStr r (x@(Atom _):[]) = do
+evalStr r [x@(Atom _)] = do
   reduced <- r x
-  evalStr r (reduced:[])
-evalStr r (x@(Lambda _):[]) = do
+  evalStr r [reduced]
+evalStr r [x@(Lambda _)] = do
   reduced <- r x
-  evalStr r (reduced:[])
+  evalStr r [reduced]
 evalStr _ _ = evalErr "evalStr error"
 
 -- | retrieve the value of a var
 getenv :: Command
-getenv _ ((Atom varname):[]) = do
+getenv _ [Atom varname] = do
   hm <- get
   return $ fromMaybe Void (Map.lookup varname hm)
-getenv _ ((Str varname):[]) = do
+getenv _ [Str varname] = do
   hm <- get
   return $ fromMaybe Void (Map.lookup varname hm)
 getenv r (expr:_) = do
@@ -289,11 +289,11 @@ quote :: Command
 quote _ exprs = return (List (map Fix exprs))
 
 evalList :: Command
-evalList r (List exprs:[]) = r (Lambda exprs)
-evalList r (x@(Atom _):[]) = do
+evalList r [List exprs] = r (Lambda exprs)
+evalList r [x@(Atom _)] = do
   evaluated <- r x
   evalList r [evaluated]
-evalList r (x@(Lambda _):[]) = do
+evalList r [x@(Lambda _)] = do
   evaluated <- r x
   evalList r [evaluated]
 evalList _ x = evalErr ("Waiting for a list of exprs got: " <> toS (show x))

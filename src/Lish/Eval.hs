@@ -25,10 +25,10 @@ infer _ Void = return LVoid
 infer _ (Num _) = return LNum
 infer _ (Bool _) = return LBool
 infer _ (Str _) = return LStr
-infer ctx (List ((Fix expr):exprs)) = do
+infer ctx (List (Fix expr:exprs)) =
   case infer ctx expr of
     Left terr -> Left terr
-    Right t -> case mapM (\e -> checkType ctx e t) (map unFix exprs) of
+    Right t -> case traverse ((\e -> checkType ctx e t) . unFix) exprs of
       Left terror -> Left terror
       Right _     -> return $ LList t
 infer ctx (Atom a) = case Map.lookup a ctx of
@@ -38,11 +38,11 @@ infer ctx (Fn parameters fnbody _ (ptypes,retType)) = do
   let newCtx = Map.union ctx (Map.fromList (zip parameters ptypes))
   checkType newCtx (unFix fnbody) retType
   return $ LFn ptypes retType
-infer ctx (Lambda ((Fix (Fn fnparams _ _ (ptypes,retType))):exprs)) =
+infer ctx (Lambda (Fix (Fn fnparams _ _ (ptypes,retType)):exprs)) =
   if length fnparams /= length exprs
   then Left (TypeError "Fn applied to the wrong number of parameters")
   else do
-    inferedTypes <- mapM (infer ctx) (map unFix exprs)
+    inferedTypes <- traverse (infer ctx . unFix) exprs
     if inferedTypes /= ptypes
       then Left . TypeError $ "Expected " <> show ptypes
                               <> " bug got " <> show inferedTypes
@@ -53,10 +53,9 @@ infer _ sexp = Left . TypeError $ "can't infer the type of " <> show sexp
 -- | Check the type of some expression regarding a type context
 checkType :: Context -> SExp -> LishType -> Either TypeError ()
 checkType ctx expr ty = infer ctx expr >>= \ inferedType ->
-  if inferedType == ty
-  then return ()
-  else Left (TypeError ("Expected Type" <> show ty
-                         <> " but got type " <> show inferedType))
+  unless (inferedType == ty) $
+         Left (TypeError ("Expected Type" <> show ty
+                          <> " but got type " <> show inferedType))
 
 isReduced :: SExp -> Bool
 isReduced (Atom _) = False
@@ -71,10 +70,10 @@ _reduceLambda (Lambda (Fix expr:fexprs)) = do
   let exprs = map unFix fexprs
   reduced <- reduceLambda expr
   if isReduced reduced
-    then do
+    then
       case reduced of
-        Internal command -> (_commandFn command) reduceLambda exprs
-        f@(Fn _ _ _ _) -> applyFn f exprs
+        Internal command -> _commandFn command reduceLambda exprs
+        f@Fn{} -> applyFn f exprs
         s  -> do
           reducedArgs <- mapM reduceLambda exprs
           executeCommand (Cmd (Fix s) (map Fix reducedArgs))
@@ -92,7 +91,7 @@ _reduceLambda x          = return x
 reduceLambda :: SExp -> StateT Env IO SExp
 reduceLambda x = do
   env <- get
-  case (Map.lookup "LISH_DEBUG" env) of
+  case Map.lookup "LISH_DEBUG" env of
     Just (Str "true") -> liftIO $ do
       putText "------"
       putStr ("Env: " :: Text)
@@ -131,12 +130,12 @@ shellErr errmsg = do
 -- | Execute a shell command
 executeCommand :: SExp -> StateT Env IO SExp
 executeCommand (Cmd (Fix (Str cmdName)) args) = do
-  res <- (mapM toArg (map unFix args)) >>= return . catMaybes
-  let argsHandle = (filter isJust (map toStdIn (map unFix args)))
+  res <- fmap catMaybes (traverse toArg (map unFix args))
+  let argsHandle = filter isJust (map (toStdIn . unFix) args)
       stdinhandle = case argsHandle of
                       (Just h:_) -> UseHandle h
                       _          -> Inherit
-  case (map toS res) of
+  case map toS res of
     sargs -> do
       result <- lift . trySh $
         createProcess (proc (toS cmdName) sargs)

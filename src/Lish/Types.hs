@@ -67,11 +67,11 @@ repr (Internal (InternalCommand n _))    = n
 repr (Num n)           = toS $ show n
 repr (Bool b)          = if b then "true" else "false"
 repr (Str s)           = "\"" <> toS s <> "\""
-repr (List sexprs)     = "[" <> (Text.intercalate " " sexprs) <> "]"
-repr (Lambda sexprs)   = "(" <> (Text.intercalate " " sexprs) <> ")"
+repr (List sexprs)     = "[" <> Text.intercalate " " sexprs <> "]"
+repr (Lambda sexprs)   = "(" <> Text.intercalate " " sexprs <> ")"
 repr Void              = "ε"
-repr (Cmd n args)  = "($ " <> n <> (Text.intercalate " " args) <> ")"
-repr (Fn p _ _ _)      = "(λ" <> (Text.intercalate "." p) <> ". ... )"
+repr (Cmd n args)  = "($ " <> n <> Text.intercalate " " args <> ")"
+repr (Fn p _ _ _)      = "(λ" <> Text.intercalate "." p <> ". ... )"
 repr (Stream _)        = "<stream>"
 repr (WaitingStream _) = "<w-stream>"
 
@@ -88,4 +88,4 @@ data InternalCommand =
 instance Show InternalCommand where
   show x = toS (_commandName x)
 instance Eq InternalCommand where
-  (==) x y = (_commandName x) == (_commandName y)
+  (==) x y = _commandName x == _commandName y
